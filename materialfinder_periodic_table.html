@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Periodic Table – Materials Filter (Inline CSV)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --pale: #e5e7eb;   /* pale gray */
+      --border: #d1d5db; /* light border */
+      --text: #111827;   /* near-black */
+      --white: #ffffff;
+      --black: #000000;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", "Noto Sans", Arial, "Apple Color Emoji", "Segoe UI Emoji"; background:#f9fafb; color:var(--text); }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    .muted { color:#6b7280; font-size: 14px; }
+    .toolbar { display:flex; gap:8px; align-items:center; justify-content:space-between; margin: 12px 0 16px; }
+    .btn { border:1px solid var(--border); background: var(--white); padding:8px 12px; border-radius:10px; font-size:14px; cursor:pointer; }
+
+    .grid { display:grid; grid-template-columns: repeat(18, minmax(38px, 1fr)); grid-template-rows: repeat(9, 56px); gap:6px; }
+    .tile {
+      position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      border:1px solid var(--border); border-radius:14px; text-align:center; user-select:none; transition: transform 80ms ease;
+      font-size:14px; background:var(--white); color:var(--text); cursor:pointer;
+    }
+    .tile:hover { transform: translateY(-1px); }
+    .tile .num { position:absolute; left:6px; top:4px; font-size:10px; color:#6b7280; }
+    .tile .sym { font-weight:600; font-size:18px; line-height:1; }
+    .tile .name { font-size:10px; color:#6b7280; margin-top:2px; }
+
+    /* Color states per your rules */
+    .state-default { background: var(--pale) !important; }
+    .state-selected { background: var(--black) !important; color: var(--white) !important; border-color: var(--black) !important; }
+    .state-co { background: var(--pale) !important; }
+    .state-off { background: var(--white) !important; }
+
+    .chips { display:flex; flex-wrap:wrap; gap:6px; margin: 6px 0 16px; }
+    .chip { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; border:1px solid var(--black); background:var(--black); color:#fff; font-size:12px; }
+    .chip button { background:transparent; color:#fff; border:0; cursor:pointer; font-size:14px; line-height:1; }
+
+    .card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:16px; margin-top:16px; }
+    table { border-collapse: separate; border-spacing: 0 6px; width:100%; font-size:14px; }
+    thead th { text-align:left; font-weight:600; color:#6b7280; padding: 8px 10px; position: sticky; top:0; background:#fff; }
+    tbody td { background:#f3f4f6; border-top:1px solid #e5e7eb; padding: 8px 10px; }
+    .badge { display:inline-block; padding:2px 6px; border-radius:8px; font-size:12px; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; }
+    .small { font-size:12px; color:#6b7280; margin-top:8px; }
+    code { background:#f3f4f6; padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Periodic Table – Materials Filter</h1>
+      <div class="muted">Click elements to multi-select. Data is embedded below as CSV. Colors follow your spec.</div>
+    </header>
+
+    <div class="toolbar">
+      <div class="muted">Source: <code>Inline CSV</code></div>
+      <button class="btn" id="clearBtn">Clear selection</button>
+    </div>
+
+    <!-- Selected chips -->
+    <div class="chips" id="chips"></div>
+
+    <!-- Periodic table -->
+    <div class="card">
+      <div class="grid" id="ptable"></div>
+      <div class="small">No selection ➜ all tiles pale gray. When selected ➜ selected tiles black; tiles that co‑occur with any selected stay pale gray; all others white.</div>
+    </div>
+
+    <!-- Materials list -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div style="font-weight:600;">Materials matching selection <span class="badge" id="matchCount">0</span></div>
+        <input id="search" placeholder="Search within results (any column)" style="border:1px solid var(--border); border-radius:10px; padding:8px 10px; width:280px;" />
+      </div>
+      <div style="overflow:auto; max-height: 50vh;">
+        <table>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="small">CSV can either have a column named <code>elements</code> (symbols separated by spaces/commas/semicolons), or composition columns like <code>Fe, Cr, Ni…</code> with positive numbers.</div>
+    </div>
+  </div>
+
+  <!-- ===================
+       EMBED YOUR CSV HERE
+       Replace the sample rows with your own.
+       Keep the first header row.
+       =================== -->
+  <script type="text/csv" id="materials-csv">
+name,elements,HV (calc),composition
+P037,Fe Cr Ni Nb,139.5,Fe25 Cr20 Ni40 Nb5
+P038,Fe Cr Ni,169.3,Fe40 Cr15 Ni40
+P039,Fe Ni Ti,248.8,Fe40 Ni40 Ti5
+P040,Fe Cr Ni Al Nb,281.3,Fe40 Cr10 Ni40 Al5 Nb5
+P041,Fe Ni Al Nb,323.4,Fe40 Ni40 Al5 Nb5
+P042,Fe Cr Ni Al Ti,370.6,Fe40 Cr5 Ni40 Al5 Ti5
+P043,Fe Ni Al,407.7,Fe40 Ni40 Al20
+P044,Fe Cr Al Ti Nb,457.4,Fe15 Cr15 Al10 Ti30 Nb30
+P045,Fe Al Ti Nb,493.0,Fe20 Al10 Ti40 Nb20
+P046,Cr Ni Ti,510.2,Cr25 Ni5 Ti40
+P066,Fe Cr Ni Nb Co V,124.9,Fe25 Cr20 Ni20 Nb5 Co25 V5
+P067,Fe Ni Ti Nb Co,132.8,Fe35 Ni15 Ti5 Nb5 Co40
+P068,Fe Ni Al Co Cu,143.7,Fe10 Ni35 Al5 Co40 Cu10
+P069,Fe Ni Ti Cu V,165.3,Fe25 Ni35 Ti5 Cu30 V5
+P070,Fe Cr Ti Mn Co V,207.6,Fe40 Cr5 Ti5 Mn5 Co40 V5
+P071,Fe Ni Al Nb Co V,244.3,Fe5 Ni40 Al5 Nb5 Co40 V5
+P072,Fe Cr Ni Ti Nb V,290.6,Fe40 Cr5 Ni40 Ti5 Nb5 V5
+P073,Ni Al Ti Mn Co,334.4,Ni40 Al5 Ti5 Mn10 Co40
+P074,Fe Cr Ni Al Ti Nb,394.7,Fe40 Cr5 Ni40 Al5 Ti5 Nb5
+P075,Fe Ni Al Ti,468.0,Fe40 Ni40 Al15 Ti5
+  </script>
+
+  <script>
+  // ========= Periodic Table Layout =========
+  const elements = [
+    // period 1
+    {num:1,sym:"H",name:"Hydrogen",row:1,col:1},{num:2,sym:"He",name:"Helium",row:1,col:18},
+    // period 2
+    {num:3,sym:"Li",name:"Lithium",row:2,col:1},{num:4,sym:"Be",name:"Beryllium",row:2,col:2},
+    {num:5,sym:"B",name:"Boron",row:2,col:13},{num:6,sym:"C",name:"Carbon",row:2,col:14},
+    {num:7,sym:"N",name:"Nitrogen",row:2,col:15},{num:8,sym:"O",name:"Oxygen",row:2,col:16},
+    {num:9,sym:"F",name:"Fluorine",row:2,col:17},{num:10,sym:"Ne",name:"Neon",row:2,col:18},
+    // period 3
+    {num:11,sym:"Na",name:"Sodium",row:3,col:1},{num:12,sym:"Mg",name:"Magnesium",row:3,col:2},
+    {num:13,sym:"Al",name:"Aluminum",row:3,col:13},{num:14,sym:"Si",name:"Silicon",row:3,col:14},
+    {num:15,sym:"P",name:"Phosphorus",row:3,col:15},{num:16,sym:"S",name:"Sulfur",row:3,col:16},
+    {num:17,sym:"Cl",name:"Chlorine",row:3,col:17},{num:18,sym:"Ar",name:"Argon",row:3,col:18},
+    // period 4
+    {num:19,sym:"K",name:"Potassium",row:4,col:1},{num:20,sym:"Ca",name:"Calcium",row:4,col:2},
+    {num:21,sym:"Sc",name:"Scandium",row:4,col:3},{num:22,sym:"Ti",name:"Titanium",row:4,col:4},
+    {num:23,sym:"V",name:"Vanadium",row:4,col:5},{num:24,sym:"Cr",name:"Chromium",row:4,col:6},
+    {num:25,sym:"Mn",name:"Manganese",row:4,col:7},{num:26,sym:"Fe",name:"Iron",row:4,col:8},
+    {num:27,sym:"Co",name:"Cobalt",row:4,col:9},{num:28,sym:"Ni",name:"Nickel",row:4,col:10},
+    {num:29,sym:"Cu",name:"Copper",row:4,col:11},{num:30,sym:"Zn",name:"Zinc",row:4,col:12},
+    {num:31,sym:"Ga",name:"Gallium",row:4,col:13},{num:32,sym:"Ge",name:"Germanium",row:4,col:14},
+    {num:33,sym:"As",name:"Arsenic",row:4,col:15},{num:34,sym:"Se",name:"Selenium",row:4,col:16},
+    {num:35,sym:"Br",name:"Bromine",row:4,col:17},{num:36,sym:"Kr",name:"Krypton",row:4,col:18},
+    // period 5
+    {num:37,sym:"Rb",name:"Rubidium",row:5,col:1},{num:38,sym:"Sr",name:"Strontium",row:5,col:2},
+    {num:39,sym:"Y",name:"Yttrium",row:5,col:3},{num:40,sym:"Zr",name:"Zirconium",row:5,col:4},
+    {num:41,sym:"Nb",name:"Niobium",row:5,col:5},{num:42,sym:"Mo",name:"Molybdenum",row:5,col:6},
+    {num:43,sym:"Tc",name:"Technetium",row:5,col:7},{num:44,sym:"Ru",name:"Ruthenium",row:5,col:8},
+    {num:45,sym:"Rh",name:"Rhodium",row:5,col:9},{num:46,sym:"Pd",name:"Palladium",row:5,col:10},
+    {num:47,sym:"Ag",name:"Silver",row:5,col:11},{num:48,sym:"Cd",name:"Cadmium",row:5,col:12},
+    {num:49,sym:"In",name:"Indium",row:5,col:13},{num:50,sym:"Sn",name:"Tin",row:5,col:14},
+    {num:51,sym:"Sb",name:"Antimony",row:5,col:15},{num:52,sym:"Te",name:"Tellurium",row:5,col:16},
+    {num:53,sym:"I",name:"Iodine",row:5,col:17},{num:54,sym:"Xe",name:"Xenon",row:5,col:18},
+    // period 6
+    {num:55,sym:"Cs",name:"Cesium",row:6,col:1},{num:56,sym:"Ba",name:"Barium",row:6,col:2},
+    {num:57,sym:"La",name:"Lanthanum",row:6,col:3},{num:72,sym:"Hf",name:"Hafnium",row:6,col:4},
+    {num:73,sym:"Ta",name:"Tantalum",row:6,col:5},{num:74,sym:"W",name:"Tungsten",row:6,col:6},
+    {num:75,sym:"Re",name:"Rhenium",row:6,col:7},{num:76,sym:"Os",name:"Osmium",row:6,col:8},
+    {num:77,sym:"Ir",name:"Iridium",row:6,col:9},{num:78,sym:"Pt",name:"Platinum",row:6,col:10},
+    {num:79,sym:"Au",name:"Gold",row:6,col:11},{num:80,sym:"Hg",name:"Mercury",row:6,col:12},
+    {num:81,sym:"Tl",name:"Thallium",row:6,col:13},{num:82,sym:"Pb",name:"Lead",row:6,col:14},
+    {num:83,sym:"Bi",name:"Bismuth",row:6,col:15},{num:84,sym:"Po",name:"Polonium",row:6,col:16},
+    {num:85,sym:"At",name:"Astatine",row:6,col:17},{num:86,sym:"Rn",name:"Radon",row:6,col:18},
+    // period 7
+    {num:87,sym:"Fr",name:"Francium",row:7,col:1},{num:88,sym:"Ra",name:"Radium",row:7,col:2},
+    {num:89,sym:"Ac",name:"Actinium",row:7,col:3},{num:104,sym:"Rf",name:"Rutherfordium",row:7,col:4},
+    {num:105,sym:"Db",name:"Dubnium",row:7,col:5},{num:106,sym:"Sg",name:"Seaborgium",row:7,col:6},
+    {num:107,sym:"Bh",name:"Bohrium",row:7,col:7},{num:108,sym:"Hs",name:"Hassium",row:7,col:8},
+    {num:109,sym:"Mt",name:"Meitnerium",row:7,col:9},{num:110,sym:"Ds",name:"Darmstadtium",row:7,col:10},
+    {num:111,sym:"Rg",name:"Roentgenium",row:7,col:11},{num:112,sym:"Cn",name:"Copernicium",row:7,col:12},
+    {num:113,sym:"Nh",name:"Nihonium",row:7,col:13},{num:114,sym:"Fl",name:"Flerovium",row:7,col:14},
+    {num:115,sym:"Mc",name:"Moscovium",row:7,col:15},{num:116,sym:"Lv",name:"Livermorium",row:7,col:16},
+    {num:117,sym:"Ts",name:"Tennessine",row:7,col:17},{num:118,sym:"Og",name:"Oganesson",row:7,col:18},
+    // Lanthanides row (period 6 f-block) => row 8
+    {num:58,sym:"Ce",name:"Cerium",row:8,col:4},{num:59,sym:"Pr",name:"Praseodymium",row:8,col:5},
+    {num:60,sym:"Nd",name:"Neodymium",row:8,col:6},{num:61,sym:"Pm",name:"Promethium",row:8,col:7},
+    {num:62,sym:"Sm",name:"Samarium",row:8,col:8},{num:63,sym:"Eu",name:"Europium",row:8,col:9},
+    {num:64,sym:"Gd",name:"Gadolinium",row:8,col:10},{num:65,sym:"Tb",name:"Terbium",row:8,col:11},
+    {num:66,sym:"Dy",name:"Dysprosium",row:8,col:12},{num:67,sym:"Ho",name:"Holmium",row:8,col:13},
+    {num:68,sym:"Er",name:"Erbium",row:8,col:14},{num:69,sym:"Tm",name:"Thulium",row:8,col:15},
+    {num:70,sym:"Yb",name:"Ytterbium",row:8,col:16},{num:71,sym:"Lu",name:"Lutetium",row:8,col:17},
+    // Actinides row (period 7 f-block) => row 9
+    {num:90,sym:"Th",name:"Thorium",row:9,col:4},{num:91,sym:"Pa",name:"Protactinium",row:9,col:5},
+    {num:92,sym:"U",name:"Uranium",row:9,col:6},{num:93,sym:"Np",name:"Neptunium",row:9,col:7},
+    {num:94,sym:"Pu",name:"Plutonium",row:9,col:8},{num:95,sym:"Am",name:"Americium",row:9,col:9},
+    {num:96,sym:"Cm",name:"Curium",row:9,col:10},{num:97,sym:"Bk",name:"Berkelium",row:9,col:11},
+    {num:98,sym:"Cf",name:"Californium",row:9,col:12},{num:99,sym:"Es",name:"Einsteinium",row:9,col:13},
+    {num:100,sym:"Fm",name:"Fermium",row:9,col:14},{num:101,sym:"Md",name:"Mendelevium",row:9,col:15},
+    {num:102,sym:"No",name:"Nobelium",row:9,col:16},{num:103,sym:"Lr",name:"Lawrencium",row:9,col:17},
+  ];
+
+  // ========= State =========
+  const selected = new Set();
+  let materialsRows = [];  // array of row objects with at least {name, elements}
+  let headers = [];        // CSV headers (incl. name/elements)
+  let coMap = new Map();   // sym -> Set of co-occurring symbols
+  const searchInput = document.getElementById("search");
+
+  // ========= Build UI =========
+  const grid = document.getElementById("ptable");
+  const chips = document.getElementById("chips");
+  const thead = document.getElementById("thead");
+  const tbody = document.getElementById("tbody");
+  const matchCount = document.getElementById("matchCount");
+
+  function mountGrid() {
+    grid.innerHTML = "";
+    for (const el of elements) {
+      const b = document.createElement("button");
+      b.className = "tile";
+      b.style.gridRow = el.row;
+      b.style.gridColumn = el.col;
+      b.dataset.sym = el.sym;
+      b.title = `${el.name} (${el.sym})`;
+      b.innerHTML = `<span class="num">${el.num}</span><span class="sym">${el.sym}</span><span class="name">${el.name}</span>`;
+      b.addEventListener("click", () => toggle(el.sym));
+      grid.appendChild(b);
+    }
+    applyColorRules();
+  }
+
+  function renderChips() {
+    chips.innerHTML = "";
+    if (selected.size === 0) return;
+    for (const s of selected) {
+      const span = document.createElement("span");
+      span.className = "chip";
+      span.innerHTML = `${s} <button aria-label="Remove ${s}">×</button>`;
+      span.querySelector("button").onclick = () => toggle(s);
+      chips.appendChild(span);
+    }
+  }
+
+  function toggle(sym) {
+    if (selected.has(sym)) selected.delete(sym); else selected.add(sym);
+    renderChips();
+    applyColorRules();
+    renderTable();
+  }
+
+  document.getElementById("clearBtn").onclick = () => {
+    selected.clear();
+    renderChips();
+    applyColorRules();
+    renderTable();
+  };
+
+  // ========= Color Rules =========
+  function applyColorRules() {
+    const tiles = grid.querySelectorAll(".tile");
+    if (selected.size === 0) {
+      tiles.forEach(t => setState(t, "state-default"));
+      return;
+    }
+    // build union of co-occurring symbols for selection
+    const union = new Set();
+    for (const s of selected) {
+      const set = coMap.get(s) || new Set();
+      for (const o of set) union.add(o);
+    }
+    tiles.forEach(t => {
+      const sym = t.dataset.sym;
+      if (selected.has(sym)) setState(t, "state-selected");
+      else if (union.has(sym)) setState(t, "state-co");
+      else setState(t, "state-off");
+    });
+  }
+
+  function setState(el, cls) {
+    el.classList.remove("state-default","state-selected","state-co","state-off");
+    el.classList.add(cls);
+  }
+
+  // ========= CSV Loading (inline) =========
+  try {
+    const csvText = document.getElementById("materials-csv").textContent.trim();
+    const parsed = parseAnyMaterialsCSV(csvText);
+    materialsRows = parsed.rows;
+    headers = parsed.headers;
+    coMap = buildCoOccurrence(materialsRows);
+    mountGrid();
+    renderChips();
+    renderTable();
+  } catch (err) {
+    console.error(err);
+    thead.innerHTML = "";
+    tbody.innerHTML = `<tr><td>Could not parse embedded CSV. Check the header row and separators.</td></tr>`;
+  }
+
+  // Accepts either:
+  // 1) a column named "elements" with symbols (space/comma/semicolon separated), or
+  // 2) composition columns named as element symbols (Fe, Cr, Ni...) with positive numbers.
+  function parseAnyMaterialsCSV(text) {
+    const lines = text.replace(/\r/g, "").split("\n");
+    let i = 0; while (i < lines.length && !/[^,\s;\t|]/.test(lines[i])) i++;
+    if (i >= lines.length) return { headers: [], rows: [] };
+
+    const headerLine = lines[i];
+    const sep = guessSep(headerLine);
+    const rawHeaders = headerLine.split(sep).map(clean);
+    const rowsRaw = lines.slice(i+1).filter(l => l.trim().length);
+
+    const rows = rowsRaw.map((line, idx) => {
+      const cells = line.split(sep).map(clean);
+      const obj = {};
+      rawHeaders.forEach((h, j) => obj[h] = (cells[j] ?? ""));
+      return obj;
+    });
+
+    // If already tidy with `elements` column:
+    if (rawHeaders.some(h => h.toLowerCase() === "elements")) {
+      const headers = Array.from(new Set(["name","elements", ...rawHeaders]));
+      const out = rows.map((r, idx) => ({
+        name: r.name || r.Name || r.id || r.ID || `row_${idx}`,
+        elements: String(r.elements || r.Elements || "").trim(),
+        ...r
+      }));
+      return { headers, rows: out };
+    }
+
+    // Otherwise synthesize `elements` from positive numeric element columns
+    const isElHeader = h => /^[A-Z][a-z]?$/.test(h);
+    const elemCols = rawHeaders.filter(isElHeader);
+    const outRows = rows.map((r, idx) => {
+      let nameKey = rawHeaders[0];
+      if (isElHeader(nameKey)) nameKey = null;
+      const name = nameKey ? (r[nameKey] || `row_${idx}`) : `row_${idx}`;
+      const present = [];
+      for (const c of elemCols) {
+        const v = parseFloat(String(r[c]).replace(",", "."));
+        if (!isNaN(v) && v > 0) present.push(c);
+      }
+      return { name, elements: present.join(" "), ...r };
+    });
+    const headers = Array.from(new Set(["name","elements", ...rawHeaders]));
+    return { headers, rows: outRows };
+  }
+
+  function clean(s) { return (s ?? "").replace(/^"|"$/g, "").trim(); }
+  function guessSep(line) {
+    const counts = { ",": (line.match(/,/g)||[]).length, ";": (line.match(/;/g)||[]).length, "\t": (line.match(/\t/g)||[]).length, "|": (line.match(/\|/g)||[]).length };
+    const best = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+    return best && best[1] >= 2 ? best[0] : ",";
+  }
+
+  // Build element -> co-occurrence set from each row's `elements`
+  function buildCoOccurrence(rows) {
+    const map = new Map();
+    for (const r of rows) {
+      const list = String(r.elements || "").split(/[;,\s]+/).map(x => x.trim()).filter(Boolean);
+      for (const a of list) {
+        if (!map.has(a)) map.set(a, new Set());
+        for (const b of list) if (b !== a) map.get(a).add(b);
+      }
+    }
+    return map;
+  }
+
+  // ========= Materials table rendering & filtering =========
+  searchInput.addEventListener("input", renderTable);
+
+  function renderTable() {
+    const sel = Array.from(selected);
+    let rows = materialsRows.filter(r => {
+      const set = new Set(String(r.elements || "").split(/[;,\s]+/).filter(Boolean));
+      return sel.every(s => set.has(s));
+    });
+
+    const q = searchInput.value.trim().toLowerCase();
+    if (q) rows = rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)));
+
+    const orderedHeaders = ["name","elements", ...headers.filter(h => h !== "name" && h !== "elements")];
+    thead.innerHTML = "<tr>" + orderedHeaders.map(h => `<th>${h}</th>`).join("") + "</tr>";
+    tbody.innerHTML = rows.map(r => `<tr>${orderedHeaders.map(h => `<td>${escapeHTML(String(r[h] ?? ""))}</td>`).join("")}</tr>`).join("");
+    matchCount.textContent = rows.length;
+  }
+
+  function escapeHTML(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  </script>
+</body>
+</html>
