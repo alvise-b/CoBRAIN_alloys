@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CoBrain Alloys — Interactive Chart with Filters</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 18px; }
+    h2 { margin-bottom: 8px; }
+    #controls { margin-bottom: 10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    label { font-size:14px; }
+    select, button { padding:6px 8px; font-size:14px; }
+    #filters, #phaseFilter { margin-top:10px; margin-bottom:10px; }
+    .slider-group { display:flex; align-items:center; margin:4px 0; gap:6px; }
+    .slider-group label { width:40px; text-align:right; }
+    input[type=range] { width:140px; }
+    .checkbox-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:4px; }
+    .note { color:#666; font-size:13px; margin-top:6px; }
+    #plot { width:100%; height:80vh; }
+  </style>
+</head>
+<body>
+  <h2>CoBrain Alloys — Interactive Scatter with Filters</h2>
+<div id="elementCombos" style="margin:10px 0; font-size:14px;"></div>
+  <div id="controls">
+    <label>
+      X-axis:
+      <select id="xSelect">
+        <option value="Hardness" selected>Hardness (HV)</option>
+        <option value="PittingPotential">Pitting Potential (mV)</option>
+        <option value="SFE">Stacking Fault Energy (mJ/m²)</option>
+        <option value="Density">Density (kg/L)</option>
+      </select>
+    </label>
+    <label>
+      Y-axis:
+      <select id="ySelect">
+        <option value="SFE" selected>Stacking Fault Energy (mJ/m²)</option>
+        <option value="Hardness">Hardness (HV)</option>
+        <option value="PittingPotential">Pitting Potential (mV)</option>
+        <option value="Density">Density (kg/L)</option>
+      </select>
+    </label>
+    <label>
+      Size by:
+      <select id="sizeSelect">
+        <option value="none">None</option>
+        <option value="SFE">SFE</option>
+        <option value="Hardness">Hardness</option>
+        <option value="PittingPotential">PittingPotential</option>
+        <option value="Density">Density</option>
+      </select>
+    </label>
+    <button id="refreshBtn">Refresh / Recompute</button>
+  </div>
+
+  <!-- Element sliders -->
+  <fieldset id="filters">
+    <legend><b>Element Filters (atomic %)</b></legend>
+    <div id="sliderContainer"></div>
+  </fieldset>
+
+  <!-- Phase checkboxes -->
+<fieldset id="phaseFilter">
+  <legend><b>Phase Filter</b></legend>
+  <button id="togglePhasesBtn" type="button" style="margin-bottom:6px;">Deselect All</button>
+  <div id="phaseContainer" class="checkbox-grid"></div>
+</fieldset>
+
+  <div id="plot"></div>
+  <div class="note">
+    Hover points to see composition and phases.<br>
+    Use sliders to limit element ranges (default 0–40 at%) and checkboxes to toggle visible phases.
+  </div>
+
+<script>
+const atomicMasses = { Al:26.982, Cr:51.996, Cu:63.546, Fe:55.845, Mn:54.95, Mo:95.94, Ni:58.693, Si:28.086 };
+const elementDensities = { Al:2.7, Cr:7.19, Cu:8.96, Fe:7.86, Mn:54.94,Mo:10.2, Ni:8.9, Si:2.33 };
+const filterElements = ["Al","Cr","Cu","Fe","Mn","Mo","Ni","Si"];
+
+function safeGet(obj, path, def=undefined){
+  try{ let cur=obj; for(const p of path){ cur = cur?.[p]; if(cur===undefined) return def; } return cur; }catch(e){return def;}
+}
+function round2(x){ return (typeof x === 'number' && isFinite(x)) ? Math.round(x*100)/100 : null; }
+
+let allRecords = [];
+let allPhases = [];
+
+/* === Load data === */
+async function loadAndPlot(){
+  const file = 'CoBrain_alloys.json';
+  const resp = await fetch(file);
+  const data = await resp.json();
+
+
+
+  const records = [];
+  for(const [name, props] of Object.entries(data)){
+    if(typeof props !== 'object') continue;
+    const hardness = props.hardness && typeof props.hardness === 'object' ? props.hardness : {};
+    const at = {};
+    for(const [k,v] of Object.entries(hardness)){
+      if(filterElements.includes(k) && typeof v==='number') at[k] = v;
+    }
+    if(Object.keys(at).length===0) continue;
+
+    const totalMass = Object.entries(at).reduce((s,[el,v])=> s+(v*atomicMasses[el]),0);
+    const wt={};
+    for(const [el,v] of Object.entries(at)) wt[el]=(v*atomicMasses[el])/totalMass*100;
+
+    let density=null;
+    if(Object.keys(wt).every(el=>elementDensities[el])){
+      const denom=Object.entries(wt).reduce((s,[el,v])=>s+(v/100)/elementDensities[el],0);
+      density=1/denom;
+    }
+
+    const phases = Object.entries(props.phase||{}).sort((a,b)=>b[1]-a[1]);
+    const topPhases = phases.slice(0,3).map(([n,v])=>({name:n,val:v*100}));
+    records.push({
+      Alloy:name, at, wt,
+      Hardness:safeGet(props,["hardness","Hardness"]),
+      PittingPotential:safeGet(props,["pitting_potential","PittingPotential"]),
+      SFE:safeGet(props,["stacking_fault_energy","StackingFaultEnergy"]),
+      Density:density?round2(density):null,
+      TopPhases:topPhases
+    });
+  }
+/* === Compute unique element combinations (quintuples) === */
+const comboSet = new Set();
+for (const r of records) {
+  const els = Object.keys(r.at).sort();   // alphabetical order
+  const comboKey = els.join('-');         // e.g. "Al-Cr-Cu-Fe-Mn"
+  if (els.length === 5) comboSet.add(comboKey);
+}
+const combos = Array.from(comboSet).sort();
+
+// Show in the HTML
+const comboDiv = document.getElementById('elementCombos');
+comboDiv.innerHTML = `<b>Distinct 5-element groups:</b> (${combos.length})<br>` +
+  combos.map(c => c).join('<br>');
+
+
+
+  allRecords = records;
+  setupSliders();
+  setupPhaseFilter(records);
+  drawPlot();
+}
+
+/* === Sliders === */
+function setupSliders(){
+  const container=document.getElementById('sliderContainer');
+  container.innerHTML='';
+  for(const el of filterElements){
+    const div=document.createElement('div');
+    div.className='slider-group';
+    div.innerHTML=`
+      <label>${el}</label>
+      <input type="range" id="${el}Min" min="0" max="100" value="0" step="0.5">
+      <span id="${el}MinVal">0</span>
+      <span>–</span>
+      <input type="range" id="${el}Max" min="0" max="100" value="40" step="0.5">
+      <span id="${el}MaxVal">40</span>`;
+    container.appendChild(div);
+    const minEl=document.getElementById(`${el}Min`);
+    const maxEl=document.getElementById(`${el}Max`);
+    minEl.oninput=()=>{document.getElementById(`${el}MinVal`).textContent=minEl.value; drawPlot();}
+    maxEl.oninput=()=>{document.getElementById(`${el}MaxVal`).textContent=maxEl.value; drawPlot();}
+  }
+}
+
+/* === Phase checkboxes === */
+function setupPhaseFilter(records){
+  const container=document.getElementById('phaseContainer');
+  container.innerHTML='';
+  const phaseSet=new Set();
+  records.forEach(r=>r.TopPhases?.forEach(p=>phaseSet.add(p.name)));
+  allPhases = Array.from(phaseSet).sort();
+  for(const ph of allPhases){
+    const id=`phase_${ph}`;
+    const div=document.createElement('div');
+    div.innerHTML=`<label><input type="checkbox" id="${id}" checked> ${ph}</label>`;
+    container.appendChild(div);
+    document.getElementById(id).onchange=drawPlot;
+  }
+}
+/* === Toggle all phase checkboxes === */
+function toggleAllPhases(){
+  const btn = document.getElementById('togglePhasesBtn');
+  const checkboxes = allPhases.map(ph => document.getElementById(`phase_${ph}`));
+  const allChecked = checkboxes.every(ch => ch.checked);
+
+  // if all are checked → uncheck all, else → check all
+  for (const ch of checkboxes) ch.checked = !allChecked;
+  btn.textContent = allChecked ? "Select All" : "Deselect All";
+  drawPlot();
+}
+
+/* === Filtering === */
+function applyFilters(records){
+  return records.filter(r=>{
+    const inRange = filterElements.every(el=>{
+      const val=(r.at?.[el]||0)*100;
+      const minv=parseFloat(document.getElementById(`${el}Min`).value);
+      const maxv=parseFloat(document.getElementById(`${el}Max`).value);
+      return val>=minv && val<=maxv;
+    });
+    if(!inRange) return false;
+    const firstPhase=r.TopPhases?.[0]?.name || 'Unknown';
+    const visible=document.getElementById(`phase_${firstPhase}`);
+    return !visible || visible.checked;
+  });
+}
+
+/* === Plot === */
+function drawPlot(){
+  const xSel=document.getElementById('xSelect').value;
+  const ySel=document.getElementById('ySelect').value;
+  const sizeSel=document.getElementById('sizeSelect').value;
+  const filtered=applyFilters(allRecords);
+
+  const groups={};
+  for(const r of filtered){
+    const phase=r.TopPhases?.[0]?.name||'Unknown';
+    if(!groups[phase]) groups[phase]=[];
+    groups[phase].push(r);
+  }
+
+  const traces=[];
+  for(const [ph,recs] of Object.entries(groups)){
+    const xs=recs.map(r=>r[xSel]);
+    const ys=recs.map(r=>r[ySel]);
+    let sizes=recs.map(_=>10);
+    if(sizeSel!=='none'){
+      const vals=recs.map(r=>r[sizeSel]||0);
+      const minv=Math.min(...vals), maxv=Math.max(...vals);
+      sizes=vals.map(v=>8+30*((v-minv)/(maxv-minv||1)));
+    }
+   const hover = recs.map(r => {
+  const atsList = Object.entries(r.at)
+    .map(([e, v]) => `${e}: ${round2(v * 100)}%`)
+    .join('<br>');
+  const wtsList = Object.entries(r.wt)
+    .map(([e, v]) => `${e}: ${round2(v)}%`)
+    .join('<br>');
+  const phases = r.TopPhases?.map(p => `${p.name} (${round2(p.val)}%)`).join('<br>') || '';
+
+  return `
+    <b>${r.Alloy}</b><br>
+    X: ${r[xSel]}<br>
+    Y: ${r[ySel]}<br>
+    <b>Composition (at%)</b><br>${atsList}<br>
+    <b>Composition (wt%)</b><br>${wtsList}<br>
+    <b>Density:</b> ${r.Density || 'n/a'}<br>
+    <b>Phases:</b><br>${phases}
+  `;
+});
+    traces.push({
+      x:xs, y:ys, text:hover, hoverinfo:'text', mode:'markers', name:ph,
+      marker:{size:sizes,opacity:0.9,line:{width:0.5,color:'rgba(0,0,0,0.2)'}}
+    });
+  }
+
+  Plotly.newPlot('plot', traces, {
+    title:`Alloys (${filtered.length} shown)`,
+    xaxis:{title:xSel}, yaxis:{title:ySel},
+    legend:{orientation:'h',x:0,y:-0.2}, hovermode:'closest'
+  }, {responsive:true});
+}
+
+/* === Bind events === */
+document.getElementById('refreshBtn').onclick=drawPlot;
+document.getElementById('xSelect').onchange=drawPlot;
+document.getElementById('ySelect').onchange=drawPlot;
+document.getElementById('sizeSelect').onchange=drawPlot;
+document.getElementById('togglePhasesBtn').onclick = toggleAllPhases;
+
+/* === Start === */
+loadAndPlot();
+</script>
+</body>
+</html>
