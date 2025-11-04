@@ -115,7 +115,30 @@ async function loadAndPlot(){
       density=1/denom;
     }
 
-    const phases = Object.entries(props.phase||{}).sort((a,b)=>b[1]-a[1]);
+    
+    let phaseData = {};
+	if (props.phase) {
+	  // New format: phases inside props.phase.phase
+  		if (props.phase.phase && typeof props.phase.phase === 'object') {
+    		phaseData = props.phase.phase;
+  		} 
+	  // Old format: phases directly inside "phase"
+  	else if (typeof props.phase === 'object') {
+    	phaseData = props.phase;
+  		}
+	}
+	const phases = Object.entries(phaseData).filter(([_,v]) => typeof v === 'number').sort((a,b)=>b[1]-a[1]);
+	const topPhases = phases.slice(0,3).map(([n,v])=>({name:n,val:v*100}));
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     const topPhases = phases.slice(0,3).map(([n,v])=>({name:n,val:v*100}));
     records.push({
       Alloy:name, at, wt,
