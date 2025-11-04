@@ -115,8 +115,34 @@ async function loadAndPlot(){
       density=1/denom;
     }
 
-    const phases = Object.entries(props.phase||{}).sort((a,b)=>b[1]-a[1]);
-    const topPhases = phases.slice(0,3).map(([n,v])=>({name:n,val:v*100}));
+
+
+/* --- handle phase block safely --- */
+let phaseData = {};
+try {
+  if (props && typeof props.phase === 'object' && props.phase !== null) {
+    if (props.phase.phase && typeof props.phase.phase === 'object') {
+      // new format
+      phaseData = props.phase.phase;
+    } else {
+      // old format
+      phaseData = props.phase;
+    }
+  }
+} catch (e) {
+  console.warn('Phase parse error in', name, e);
+  phaseData = {};
+}
+
+// extract numeric values only
+const numericPhases = Object.entries(phaseData || {})
+  .filter(([_, v]) => typeof v === 'number' && isFinite(v));
+
+const phases = numericPhases.sort((a, b) => b[1] - a[1]);
+const topPhases = phases.slice(0, 3).map(([n, v]) => ({ name: n, val: v * 100 }));
+
+
+
     records.push({
       Alloy:name, at, wt,
       Hardness:safeGet(props,["hardness","Hardness"]),
