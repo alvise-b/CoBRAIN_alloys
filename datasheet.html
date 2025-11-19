@@ -113,31 +113,32 @@
       min-width: 240px;
       flex: 1 1 0;
     }
-      /* Pie chart row: forced single line, auto-shrink */
-  .pie-section {
-    margin-top: 10px;
-  }
 
-  .pie-grid {
-    display: flex;
-    flex-wrap: nowrap;    /* keep all three on one line */
-    gap: 8px;
-  }
+    /* Pie chart row: forced single line, auto-shrink */
+    .pie-section {
+      margin-top: 10px;
+    }
 
-  .pie-block {
-    flex: 1 1 0;
-    min-width: 0;         /* let them shrink as needed */
-  }
+    .pie-grid {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 8px;
+    }
 
-  .pie-holder {
-    width: 100%;
-    height: 220px;        /* normal on-screen height */
-  }
+    .pie-block {
+      flex: 1 1 0;
+      min-width: 0;
+    }
 
+    .pie-holder {
+      width: 100%;
+      height: 220px;
+    }
 
-    #compPieAt, #compPieWt, #phasePie {
-      width: 320px;
-      height: 240px;
+    /* Radar chart container */
+    .radar-holder {
+      width: 100%;
+      height: 260px;
     }
 
     #errorMessage {
@@ -212,10 +213,17 @@
         font-size: 11px;
       }
 
-#compPieAt, #compPieWt, #phasePie {
-  width: 320px;
-  height: 240px;
-}
+      .pie-holder {
+        height: 170px;
+      }
+
+      .pie-grid {
+        flex-wrap: nowrap;
+      }
+
+      .radar-holder {
+        height: 200px;
+      }
 
       #errorMessage {
         display: none;
@@ -260,51 +268,58 @@
   <div id="errorMessage"></div>
 
   <div id="mainContent" style="display:none;">
+    <!-- Alloy title -->
     <div class="section">
       <h2 id="alloyTitle"></h2>
       <p class="small" id="alloySub"></p>
     </div>
 
+    <!-- Composition + Phase List -->
     <div class="section grid">
       <div class="block">
         <h3>Composition</h3>
         <div id="compTable"></div>
       </div>
       <div class="block">
-        <h3>Properties</h3>
-        <div id="propTable"></div>
+        <h3>Phase List</h3>
+        <div id="phaseTable"></div>
       </div>
     </div>
 
- <!-- at% and wt% composition pies (forced single row) -->
-<div class="section pie-section">
-  <div class="pie-grid">
-    <div class="pie-block">
-      <h3>Composition (at% — Pie)</h3>
-      <div id="compPieAt" class="pie-holder"></div>
+    <!-- 3 pies in a single row -->
+    <div class="section pie-section">
+      <div class="pie-grid">
+        <div class="pie-block">
+          <h3>Composition (at% — Pie)</h3>
+          <div id="compPieAt" class="pie-holder"></div>
+        </div>
+        <div class="pie-block">
+          <h3>Composition (wt% — Pie)</h3>
+          <div id="compPieWt" class="pie-holder"></div>
+        </div>
+        <div class="pie-block">
+          <h3>Phases (vol. % — Pie)</h3>
+          <div id="phasePie" class="pie-holder"></div>
+        </div>
+      </div>
     </div>
-    <div class="pie-block">
-      <h3>Composition (wt% — Pie)</h3>
-      <div id="compPieWt" class="pie-holder"></div>
-    </div>
-    <div class="pie-block">
-      <h3>Phases (vol. % — Pie)</h3>
-      <div id="phasePie" class="pie-holder"></div>
-    </div>
-  </div>
-</div>
 
-
-    <div class="section">
-      <h3>Phase List</h3>
-      <div id="phaseTable"></div>
+    <!-- Properties + Radar -->
+    <div class="section grid">
+      <div class="block">
+        <h3>Properties</h3>
+        <div id="propTable"></div>
+      </div>
+      <div class="block">
+        <h3>Radar Comparison (normalized)</h3>
+        <div id="radarPlot" class="radar-holder"></div>
+      </div>
     </div>
   </div>
 
   <!-- Footer with logo and EU funding text -->
   <div id="footer">
     <div id="footerLogo">
-      <!-- Adjust src path if your logo is elsewhere -->
       <img src="CoBRAIN_logo.png" alt="CoBRAIN logo">
     </div>
     <div id="footerText">
@@ -373,7 +388,7 @@ async function loadDatasheet() {
       return;
     }
 
-    // Build record (similar to index.html)
+    // Build record
     const hardnessBlock = props.hardness && typeof props.hardness === 'object'
       ? props.hardness
       : {};
@@ -425,15 +440,17 @@ async function loadDatasheet() {
     // Render
     fillHeader(record);
     fillComposition(record);
-    fillProperties(record);
     fillPhaseTable(record);
+    fillProperties(record);
     drawPies(record);
+    drawRadar(record);
 
     mainDiv.style.display = 'block';
     errDiv.textContent = '';
 
   } catch (e) {
-    errDiv.textContent = 'Error loading datasheet: ' + e.message;
+    const msg = typeof e === 'object' && e !== null && e.message ? e.message : String(e);
+    errDiv.textContent = 'Error loading datasheet: ' + msg;
   }
 }
 
@@ -552,9 +569,124 @@ function drawPies(rec) {
   }
 }
 
-// Hook up the print / PDF export button
+/**
+ * Radar chart with fixed normalization ranges.
+ * Metrics: Hardness (HV), Pitting (mV), Density (kg/L), Fe wt%, SFE (mJ/m²)
+ * References: AISI 316, Stellite, Inconel.
+ */
+function drawRadar(rec) {
+  const feWt = rec.wt && typeof rec.wt.Fe === 'number' ? rec.wt.Fe : 0;
+
+  // Reference materials with SFE
+  const refs = [
+    {
+      name: 'AISI 316',
+      Hardness: 190,
+      Pitting: 260,
+      Density: 8.0,
+      FeWt: 65,
+      SFE: 27
+    },
+    {
+      name: 'Stellite',
+      Hardness: 450,
+      Pitting: 250,
+      Density: 8.44,
+      FeWt: 4.5,
+      SFE: -50
+    },
+    {
+      name: 'Inconel',
+      Hardness: 325,
+      Pitting: 600,
+      Density: 8.44,
+      FeWt: 6,
+      SFE: 5
+    }
+  ];
+
+  const current = {
+    name: rec.Alloy,
+    Hardness: rec.Hardness,
+    Pitting: rec.PittingPotential,
+    Density: rec.Density,
+    FeWt: feWt,
+    SFE: rec.SFE
+  };
+
+  const all = [current, ...refs];
+
+  const metrics = ['Hardness', 'Pitting', 'Density', 'FeWt', 'SFE'];
+  const labels = [
+    'Hardness (HV)',
+    'Pitting potential (mV)',
+    'Density (kg/L)',
+    'Fe wt%',
+    'SFE (mJ/m²)'
+  ];
+
+  // Fixed normalization ranges for each metric
+  const manualRanges = {
+    Hardness: [0, 2000],
+    Pitting: [-200, 1500],
+    Density: [2, 12],
+    FeWt: [0, 100],
+    SFE: [-100, 200]
+  };
+
+  function normalize(val, metric) {
+    const [minv, maxv] = manualRanges[metric] || [0, 1];
+    const span = maxv - minv || 1;
+    if (typeof val !== 'number' || !isFinite(val)) return 0;
+    let n = (val - minv) / span;
+    // clamp to [0,1] in case value lies outside manual range
+    if (n < 0) n = 0;
+    if (n > 1) n = 1;
+    return n;
+  }
+
+  const traces = all.map(a => {
+    const rNorm = [];
+    const customdata = []; // actual values for hover
+
+    metrics.forEach(m => {
+      const v = a[m];
+      rNorm.push(normalize(v, m));
+      customdata.push(v);
+    });
+
+    return {
+      type: 'scatterpolar',
+      r: rNorm,
+      theta: labels,
+      fill: 'toself',
+      name: a.name,
+      customdata: customdata,
+      hovertemplate:
+        '%{theta}<br>' +
+        '%{fullData.name}: %{customdata:.2f}<extra></extra>'
+    };
+  });
+
+  const layout = {
+    polar: {
+      radialaxis: {
+        visible: true,
+        range: [0, 1],
+        tickvals: [0, 0.5, 1],
+        ticktext: ['0', '0.5', '1.0']
+      }
+    },
+    showlegend: true,
+    margin: { l: 20, r: 20, t: 20, b: 20 }
+  };
+
+  Plotly.newPlot('radarPlot', traces, layout, {responsive:true});
+}
+
+// Print / PDF export button
 document.getElementById('printBtn').onclick = function() {
-  window.print(); // user can select "Save as PDF" in the dialog
+  window.print();
 };
 
 loadDatasheet();
