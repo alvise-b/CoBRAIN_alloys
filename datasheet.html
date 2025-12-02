@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CoBRAIN Alloy Datasheet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    :root {
+      --text-color: #222;
+      --muted-color: #666;
+      --border-color: #ddd;
+      --accent-color: #003366;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 18px;
+      max-width: 1100px;
+      color: var(--text-color);
+    }
+
+    h1, h2, h3 {
+      margin-top: 0.4em;
+      margin-bottom: 0.4em;
+      font-weight: 600;
+      color: var(--accent-color);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 0.2em;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted-color);
+    }
+
+    #topBar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 6px;
+    }
+
+    #printBtn {
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      background: #f4f4f4;
+      cursor: pointer;
+    }
+
+    #printBtn:hover {
+      background: #e7e7e7;
+    }
+
+    #metaBlock {
+      margin: 0 auto 10px auto;
+      max-width: 1000px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 8px;
+    }
+
+    .intro {
+      margin-top: 8px;
+      font-size: 13px;
+      line-height: 1.35;
+      text-align: justify;
+    }
+
+    .section {
+      margin-top: 14px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+      page-break-inside: avoid;
+    }
+
+    .section:last-of-type {
+      border-bottom: none;
+    }
+
+    table {
+      border-collapse: collapse;
+      font-size: 13px;
+      width: 100%;
+    }
+
+    th, td {
+      border: 1px solid var(--border-color);
+      padding: 4px 6px;
+      text-align: right;
+    }
+
+    th:first-child, td:first-child {
+      text-align: left;
+    }
+
+    th {
+      background: #f4f4f4;
+      font-weight: 600;
+    }
+
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .block {
+      min-width: 240px;
+      flex: 1 1 0;
+    }
+
+    /* Pie chart row: forced single line, auto-shrink */
+    .pie-section {
+      margin-top: 10px;
+    }
+
+    .pie-grid {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 8px;
+    }
+
+    .pie-block {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    .pie-holder {
+      width: 100%;
+      height: 220px;
+    }
+
+    /* Radar chart container */
+    .radar-holder {
+      width: 100%;
+      height: 260px;
+    }
+
+    #errorMessage {
+      color: #b00000;
+      margin-top: 12px;
+    }
+
+    #alloyTitle {
+      font-size: 20px;
+      margin-bottom: 0.1em;
+    }
+
+    #alloySub {
+      margin-top: 0;
+    }
+
+    /* Footer with logo and EU funding text */
+    #footer {
+      margin-top: 20px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11px;
+      color: var(--muted-color);
+    }
+
+    #footerLogo {
+      flex: 0 0 auto;
+    }
+
+    #footerLogo img {
+      max-height: 36px;
+      width: auto;
+    }
+
+    #footerText {
+      flex: 1 1 auto;
+      line-height: 1.4;
+      text-align: justify;
+    }
+
+    /* Print styling */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 10mm 10mm 12mm 10mm;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      #printBtn {
+        display: none;
+      }
+
+      h1 {
+        font-size: 16px;
+      }
+
+      h2 {
+        font-size: 13px;
+      }
+
+      h3 {
+        font-size: 12px;
+      }
+
+      body, table, .small, .intro {
+        font-size: 11px;
+      }
+
+      .pie-holder {
+        height: 170px;
+      }
+
+      .pie-grid {
+        flex-wrap: nowrap;
+      }
+
+      .radar-holder {
+        height: 200px;
+      }
+
+      #errorMessage {
+        display: none;
+      }
+
+      .section, #footer {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="topBar">
+    <button id="printBtn" type="button">Export as PDF</button>
+  </div>
+
+  <h1>CoBRAIN Predicted Alloy Datasheet</h1>
+
+  <div id="metaBlock">
+    <div class="small">
+      Source: CoBRAIN predicted dataset (CoBrain_alloys.json)
+    </div>
+    <p class="intro">
+      This predicted material datasheet is generated from the CoBRAIN database of high-entropy and
+      compositionally complex alloys, where each entry integrates multi-source, multi-scale
+      knowledge into a unified property prediction. The dataset combines CALPHAD-based
+      thermodynamic calculations for phase stability, literature-derived correlations for hardness
+      and pitting potential, and DFT-based modelling for stacking-fault energy. These data are
+      further augmented and refined through machine-learning models, trained and validated using
+      the experimental results produced within CoBRAIN’s development of High-Hardness Alloys (HHA)
+      and feedstock materials for wear-resistant thermal-spray coatings. The resulting
+      properties—mechanical, electrochemical, and microstructural—represent a computationally
+      optimised estimate of performance prior to synthesis. As CoBRAIN targets the design and
+      industrialisation of advanced titanium-carbide–based hardmetals and HEA-derived coatings,
+      this datasheet provides a coherent snapshot of the material’s predicted behavior, supporting
+      screening, selection, and comparison across a large compositional space. The information
+      presented here reflects the current state of the CoBRAIN predictive framework and its
+      integration of physics-based models, data-driven correlations, and experimental calibration.
+    </p>
+  </div>
+
+  <div id="errorMessage"></div>
+
+  <div id="mainContent" style="display:none;">
+    <!-- Alloy title -->
+    <div class="section">
+      <h2 id="alloyTitle"></h2>
+      <p class="small" id="alloySub"></p>
+    </div>
+
+    <!-- Composition + Phase List -->
+    <div class="section grid">
+      <div class="block">
+        <h3>Composition</h3>
+        <div id="compTable"></div>
+      </div>
+      <div class="block">
+        <h3>Phase List</h3>
+        <div id="phaseTable"></div>
+      </div>
+    </div>
+
+    <!-- 3 pies in a single row -->
+    <div class="section pie-section">
+      <div class="pie-grid">
+        <div class="pie-block">
+          <h3>Composition (at% — Pie)</h3>
+          <div id="compPieAt" class="pie-holder"></div>
+        </div>
+        <div class="pie-block">
+          <h3>Composition (wt% — Pie)</h3>
+          <div id="compPieWt" class="pie-holder"></div>
+        </div>
+        <div class="pie-block">
+          <h3>Phases (vol. % — Pie)</h3>
+          <div id="phasePie" class="pie-holder"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Properties (full width) -->
+    <div class="section">
+      <h3>Properties</h3>
+      <div id="propTable"></div>
+    </div>
+
+    <!-- Radar (alone at bottom) -->
+    <div class="section">
+      <h3>Radar Comparison (normalized)</h3>
+      <div id="radarPlot" class="radar-holder"></div>
+    </div>
+  </div>
+
+  <!-- Footer with logo and EU funding text -->
+  <div id="footer">
+    <div id="footerLogo">
+      <img src="CoBRAIN_logo.png" alt="CoBRAIN logo">
+    </div>
+    <div id="footerText">
+      Funded by the European Union under the GA no 101092211. Views and opinions expressed are
+      however those of the author(s) only and do not necessarily reflect those of the European
+      Union or HaDEA. Neither the European Union nor the granting authority can be held responsible
+      for the granting authority can be held responsible for them.
+    </div>
+  </div>
+
+<script>
+const atomicMasses = {
+  Al:26.982, Cr:51.996, Cu:63.546, Fe:55.845,
+  Mn:54.95, Mo:95.94, Ni:58.693, Si:28.086
+};
+
+const elementDensities = {
+  Al:2.7, Cr:7.19, Cu:8.96, Fe:7.86,
+  Mn:54.94, Mo:10.2, Ni:8.9, Si:2.33
+};
+
+const filterElements = ["Al","Cr","Cu","Fe","Mn","Mo","Ni","Si"];
+
+let distThresholds = {
+  hardness: null,
+  pitting: null,
+  sfe: null,
+  phase: null
+};
+
+let distMax = {
+  hardness: null,
+  pitting: null,
+  sfe: null,
+  phase: null
+};
+
+function round2(x) {
+  return (typeof x === 'number' && isFinite(x))
+    ? Math.round(x * 100) / 100
+    : null;
+}
+
+function safeGet(obj, path, def = undefined) {
+  try {
+    let cur = obj;
+    for (const p of path) {
+      cur = cur?.[p];
+      if (cur === undefined) return def;
+    }
+    return cur;
+  } catch(e) {
+    return def;
+  }
+}
+
+function getQueryParam(name) {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name);
+}
+
+/* --- scoring helpers --- */
+function computePercentiles(arr) {
+  if (!arr.length) return null;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const n = sorted.length;
+  const pct = (p) => {
+    if (n === 1) return sorted[0];
+    const idx = Math.floor((p / 100) * (n - 1));
+    return sorted[idx];
+  };
+  return {
+    p10: pct(10),
+    p20: pct(20),
+    p50: pct(50),
+    p80: pct(80),
+    p90: pct(90)
+  };
+}
+
+function distanceToStars(dist, thresholds) {
+  if (dist == null || !thresholds) return null;
+  const { p10, p20, p50, p80, p90 } = thresholds;
+  if (dist <= p10) return 5;
+  if (dist <= p20) return 4;
+  if (dist <= p50) return 3;
+  if (dist <= p80) return 2;
+  if (dist <= p90) return 1;
+  return 1; // >90th percentile
+}
+
+function starsToHtml(stars) {
+  if (!stars) return '—';
+  return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+}
+
+function computeTrust(dist, maxDist) {
+  if (dist == null || maxDist == null || !isFinite(dist) || maxDist <= 0) {
+    return null;
+  }
+  let trust = 100 * (1 - dist / maxDist);
+  if (trust < 0) trust = 0;
+  if (trust > 100) trust = 100;
+  return trust;
+}
+
+/* --- main loader --- */
+async function loadDatasheet() {
+  const alloyName = getQueryParam('alloy');
+  const errDiv = document.getElementById('errorMessage');
+  const mainDiv = document.getElementById('mainContent');
+
+  if (!alloyName) {
+    errDiv.textContent = 'No alloy specified. Use datasheet.html?alloy=AlloyName';
+    return;
+  }
+
+  try {
+    const resp = await fetch('CoBrain_alloys.json');
+    if (!resp.ok) throw new Error('Failed to load CoBrain_alloys.json');
+    const data = await resp.json();
+
+    let selectedRecord = null;
+    const hardnessDists = [];
+    const pittingDists = [];
+    const sfeDists = [];
+    const phaseDists = [];
+
+    for (const [name, props] of Object.entries(data)) {
+      if (typeof props !== 'object') continue;
+
+      // Distances (for scoring)
+      const hardDist  = safeGet(props, ["hardness", "Distance"]);
+      const pitDist   = safeGet(props, ["pitting_potential", "Distance"]);
+      const sfeDist   = safeGet(props, ["stacking_fault_energy", "Distance"]);
+      const phaseDist = safeGet(props, ["phase", "distance"]); // note lowercase "distance"
+
+      if (typeof hardDist === 'number')  hardnessDists.push(hardDist);
+      if (typeof pitDist === 'number')   pittingDists.push(pitDist);
+      if (typeof sfeDist === 'number')   sfeDists.push(sfeDist);
+      if (typeof phaseDist === 'number') phaseDists.push(phaseDist);
+
+      if (name !== alloyName) continue;
+
+      // Build record for the selected alloy
+      const hardnessBlock = props.hardness && typeof props.hardness === 'object'
+        ? props.hardness
+        : {};
+
+      const at = {};
+      for (const [k, v] of Object.entries(hardnessBlock)) {
+        if (filterElements.includes(k) && typeof v === 'number') {
+          at[k] = v; // fraction (0–1)
+        }
+      }
+
+      const totalMass = Object.entries(at)
+        .reduce((s, [el, v]) => s + (v * atomicMasses[el]), 0);
+
+      const wt = {};
+      if (totalMass > 0) {
+        for (const [el, v] of Object.entries(at)) {
+          wt[el] = (v * atomicMasses[el]) / totalMass * 100;
+        }
+      }
+
+      let density = null;
+      if (Object.keys(wt).length &&
+          Object.keys(wt).every(el => elementDensities[el])) {
+        const denom = Object.entries(wt).reduce((s, [el, v]) =>
+          s + (v/100)/elementDensities[el], 0
+        );
+        density = 1/denom;
+      }
+
+      // phases: new structure has props.phase.phase = {phaseName: fraction}
+      let phaseMap = {};
+      if (props.phase && typeof props.phase === 'object') {
+        if (props.phase.phase && typeof props.phase.phase === 'object') {
+          phaseMap = props.phase.phase;
+        } else {
+          phaseMap = props.phase; // fallback if ever needed
+        }
+      }
+
+      const phaseEntries = Object.entries(phaseMap)
+        .filter(([, v]) => typeof v === 'number')
+        .sort((a, b) => b[1] - a[1]);
+
+      const phasesFull = phaseEntries.map(([n, v]) => ({
+        name: n,
+        val: v * 100
+      }));
+
+      selectedRecord = {
+        Alloy: alloyName,
+        at,
+        wt,
+        Hardness: safeGet(props,["hardness","Hardness"]),
+        PittingPotential: safeGet(props,["pitting_potential","PittingPotential"]),
+        SFE: safeGet(props,["stacking_fault_energy","StackingFaultEnergy"]),
+        Density: density ? round2(density) : null,
+        Phases: phasesFull,
+        HardnessDist: hardDist,
+        PittingDist: pitDist,
+        SFEDist: sfeDist,
+        PhaseDist: phaseDist
+      };
+    }
+
+    if (!selectedRecord) {
+      errDiv.textContent = 'Alloy "' + alloyName + '" not found in dataset.';
+      return;
+    }
+
+    // Compute global thresholds from all alloys
+    distThresholds = {
+      hardness: computePercentiles(hardnessDists),
+      pitting:  computePercentiles(pittingDists),
+      sfe:      computePercentiles(sfeDists),
+      phase:    computePercentiles(phaseDists)
+    };
+
+	distMax = {
+	  hardness: hardnessDists.length ? Math.max(...hardnessDists) : null,
+	  pitting:  pittingDists.length  ? Math.max(...pittingDists)  : null,
+	  sfe:      sfeDists.length      ? Math.max(...sfeDists)      : null,
+	  phase:    phaseDists.length    ? Math.max(...phaseDists)    : null
+	};
+
+    // Render
+    fillHeader(selectedRecord);
+    fillComposition(selectedRecord);
+    fillPhaseTable(selectedRecord);
+    fillProperties(selectedRecord);
+    drawPies(selectedRecord);
+    drawRadar(selectedRecord);
+
+    mainDiv.style.display = 'block';
+    errDiv.textContent = '';
+
+  } catch (e) {
+    const msg = typeof e === 'object' && e !== null && e.message ? e.message : String(e);
+    document.getElementById('errorMessage').textContent = 'Error loading datasheet: ' + msg;
+  }
+}
+
+function fillHeader(rec) {
+  document.getElementById('alloyTitle').textContent = rec.Alloy;
+  document.getElementById('alloySub').textContent =
+    'Predicted properties and composition.';
+}
+
+function fillComposition(rec) {
+  const div = document.getElementById('compTable');
+  const elements = Object.keys(rec.at).sort();
+
+  let html = '<table><thead><tr>' +
+    '<th>Element</th><th>at%</th><th>wt%</th>' +
+    '</tr></thead><tbody>';
+
+  for (const el of elements) {
+    const atp = round2(rec.at[el]*100);
+    const wtp = round2(rec.wt[el]);
+    html += `<tr><td>${el}</td><td>${atp}</td><td>${wtp}</td></tr>`;
+  }
+  html += '</tbody></table>';
+
+  div.innerHTML = html;
+}
+
+function fillProperties(rec) {
+  const div = document.getElementById('propTable');
+
+  const starsHard  = distanceToStars(rec.HardnessDist, distThresholds.hardness);
+  const starsPit   = distanceToStars(rec.PittingDist,  distThresholds.pitting);
+  const starsSFE   = distanceToStars(rec.SFEDist,      distThresholds.sfe);
+  const starsPhase = distanceToStars(rec.PhaseDist,    distThresholds.phase);
+
+  const trustHard  = computeTrust(rec.HardnessDist, distMax.hardness);
+  const trustPit   = computeTrust(rec.PittingDist,  distMax.pitting);
+  const trustSFE   = computeTrust(rec.SFEDist,      distMax.sfe);
+  const trustPhase = computeTrust(rec.PhaseDist,    distMax.phase);
+
+  const firstPhase = (rec.Phases || [])[0] || null;
+  const firstPhaseLabel = firstPhase
+    ? `${firstPhase.name} (${round2(firstPhase.val)}%)`
+    : 'n/a';
+
+  const props = [
+    ['Hardness (HV)',                 rec.Hardness,         trustHard,  starsHard],
+    ['Pitting potential (mV)',        rec.PittingPotential, trustPit,   starsPit],
+    ['Stacking fault energy (mJ/m²)', rec.SFE,              trustSFE,   starsSFE],
+    ['First phase (vol. %)',          firstPhaseLabel,      trustPhase, starsPhase],
+    ['Density (kg/L)',                rec.Density,          null,       null]
+  ];
+
+  let html = '<table><thead><tr>' +
+             '<th>Property</th><th>Value</th><th>Trustability</th><th>Score</th>' +
+             '</tr></thead><tbody>';
+
+  for (const [label, val, trust, stars] of props) {
+    const formattedVal =
+      typeof val === 'number' ? round2(val) :
+      (val != null ? val : 'n/a');
+
+    const formattedTrust =
+      typeof trust === 'number' ? `${round2(trust)}%` :
+      (trust != null ? trust : '—');
+
+    html += `<tr>
+      <th>${label}</th>
+      <td>${formattedVal}</td>
+      <td>${formattedTrust}</td>
+      <td>${starsToHtml(stars)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  div.innerHTML = html;
+}
+
+
+function fillPhaseTable(rec) {
+  const div = document.getElementById('phaseTable');
+  const phases = (rec.Phases || []).filter(p => p.val > 0.01);
+
+  if (!phases.length) {
+    div.innerHTML = '<span class="small">No phase data available.</span>';
+    return;
+  }
+
+  let html = '<table><thead><tr>' +
+    '<th>Phase</th><th>Volume fraction (%)</th>' +
+    '</tr></thead><tbody>';
+
+  for (const p of phases) {
+    html += `<tr><td>${p.name}</td><td>${round2(p.val)}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  div.innerHTML = html;
+}
+
+function drawPies(rec) {
+  const elements = Object.keys(rec.at).sort();
+
+  // Composition pie (at%)
+  const compLabelsAt = elements;
+  const compValuesAt = elements.map(el => rec.at[el]*100);
+
+  if (compLabelsAt.length) {
+    Plotly.newPlot('compPieAt', [{
+      type: 'pie',
+      labels: compLabelsAt,
+      values: compValuesAt,
+      textinfo: 'label+percent',
+      hovertemplate: '%{label}: %{value:.2f}%<extra></extra>'
+    }], {
+      margin:{l:0,r:0,t:10,b:10}
+    }, {responsive:true});
+  }
+
+  // Composition pie (wt%)
+  const compLabelsWt = elements;
+  const compValuesWt = elements.map(el => rec.wt[el] || 0);
+
+  if (compLabelsWt.length) {
+    Plotly.newPlot('compPieWt', [{
+      type: 'pie',
+      labels: compLabelsWt,
+      values: compValuesWt,
+      textinfo: 'label+percent',
+      hovertemplate: '%{label}: %{value:.2f}%<extra></extra>'
+    }], {
+      margin:{l:0,r:0,t:10,b:10}
+    }, {responsive:true});
+  }
+
+  // Phase pie
+  const phases = (rec.Phases || []).filter(p => p.val > 0.01);
+  if (phases.length) {
+    Plotly.newPlot('phasePie', [{
+      type: 'pie',
+      labels: phases.map(p => p.name),
+      values: phases.map(p => p.val),
+      textinfo: 'label+percent',
+      hovertemplate: '%{label}: %{value:.2f} %<extra></extra>'
+    }], {
+      margin:{l:0,r:0,t:10,b:10}
+    }, {responsive:true});
+  } else {
+    document.getElementById('phasePie').innerHTML =
+      '<div class="small" style="margin-top:40px;">No phase data available.</div>';
+  }
+}
+
+/**
+ * Radar chart with fixed normalization ranges.
+ * Metrics: Hardness (HV), Pitting (mV), Density (kg/L), Fe wt%, SFE (mJ/m²)
+ * References: AISI 316, Stellite, Inconel.
+ */
+function drawRadar(rec) {
+  const feWt = rec.wt && typeof rec.wt.Fe === 'number' ? rec.wt.Fe : 0;
+
+  // Reference materials with SFE
+  const refs = [
+    {
+      name: 'AISI 316',
+      Hardness: 190,
+      Pitting: 260,
+      Density: 8.0,
+      FeWt: 65,
+      SFE: 27
+    },
+    {
+      name: 'Stellite',
+      Hardness: 450,
+      Pitting: 250,
+      Density: 8.44,
+      FeWt: 4.5,
+      SFE: -50
+    },
+    {
+      name: 'Inconel',
+      Hardness: 325,
+      Pitting: 600,
+      Density: 8.44,
+      FeWt: 6,
+      SFE: 5
+    }
+  ];
+
+  const current = {
+    name: rec.Alloy,
+    Hardness: rec.Hardness,
+    Pitting: rec.PittingPotential,
+    Density: rec.Density,
+    FeWt: feWt,
+    SFE: rec.SFE
+  };
+
+  const all = [current, ...refs];
+
+  const metrics = ['Hardness', 'Pitting', 'Density', 'FeWt', 'SFE'];
+  const labels = [
+    'Hardness (HV)',
+    'Pitting potential (mV)',
+    'Density (kg/L)',
+    'Fe wt%',
+    'SFE (mJ/m²)'
+  ];
+
+  // Fixed normalization ranges for each metric
+  const manualRanges = {
+    Hardness: [0, 1000],
+    Pitting: [-200, 1000],
+    Density: [2, 12],
+    FeWt: [0, 100],
+    SFE: [-100, 200]
+  };
+
+  function normalize(val, metric) {
+    const [minv, maxv] = manualRanges[metric] || [0, 1];
+    const span = maxv - minv || 1;
+    if (typeof val !== 'number' || !isFinite(val)) return 0;
+    let n = (val - minv) / span;
+    if (n < 0) n = 0;
+    if (n > 1) n = 1;
+    return n;
+  }
+
+  const traces = all.map(a => {
+    const rNorm = [];
+    const customdata = []; // actual values for hover
+
+    metrics.forEach(m => {
+      const v = a[m];
+      rNorm.push(normalize(v, m));
+      customdata.push(v);
+    });
+
+    return {
+      type: 'scatterpolar',
+      r: rNorm,
+      theta: labels,
+      fill: 'toself',
+      name: a.name,
+      customdata: customdata,
+      hovertemplate:
+        '%{theta}<br>' +
+        '%{fullData.name}: %{customdata:.2f}<extra></extra>'
+    };
+  });
+
+  const layout = {
+    polar: {
+      radialaxis: {
+        visible: true,
+        range: [0, 1],
+        tickvals: [0, 0.5, 1],
+        ticktext: ['0', '0.5', '1.0']
+      }
+    },
+    showlegend: true,
+    margin: { l: 20, r: 20, t: 20, b: 20 }
+  };
+
+  Plotly.newPlot('radarPlot', traces, layout, {responsive:true});
+}
+
+// Print / PDF export button
+document.getElementById('printBtn').onclick = function() {
+  window.print();
+};
+
+loadDatasheet();
+</script>
+</body>
+</html>

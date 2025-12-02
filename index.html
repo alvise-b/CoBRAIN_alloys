@@ -189,6 +189,54 @@ function round2(x){ return (typeof x === 'number' && isFinite(x)) ? Math.round(x
 let allRecords = [];
 let allPhases = [];
 
+let hardnessDists = [];
+let pittingDists = [];
+let sfeDists = [];
+let phaseDists = [];
+
+let distThresholds = {
+  hardness: null,
+  pitting: null,
+  sfe: null,
+  phase: null
+};
+
+function computePercentiles(arr) {
+  if (!arr.length) return null;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const n = sorted.length;
+  const pct = (p) => {
+    if (n === 1) return sorted[0];
+    const idx = Math.floor((p / 100) * (n - 1));
+    return sorted[idx];
+  };
+  return {
+    p10: pct(10),
+    p20: pct(20),
+    p50: pct(50),
+    p80: pct(80),
+    p90: pct(90)
+  };
+}
+
+function distanceToStars(dist, thresholds) {
+  if (dist == null || !thresholds) return null;
+  const { p10, p20, p50, p80, p90 } = thresholds;
+  if (dist <= p10) return 5;
+  if (dist <= p20) return 4;
+  if (dist <= p50) return 3;
+  if (dist <= p80) return 2;
+  if (dist <= p90) return 1;
+  // values worse than 90th percentile: still 1 star
+  return 1;
+}
+
+function starsToHtml(stars) {
+  if (!stars) return '—';
+  return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+}
+
+
 /* === Load data and initialise === */
 async function loadAndPlot(){
   const file = 'CoBrain_alloys.json';
@@ -219,12 +267,40 @@ async function loadAndPlot(){
       density = 1/denom;
     }
 
-    // phases: full list and top-3
-    const phaseEntries = Object.entries(props.phase || {}).sort((a,b)=>b[1]-a[1]);
-    const phasesFull = phaseEntries.map(([n,v]) => ({ name:n, val: v*100 }));
-    const topPhases = phasesFull.slice(0,3);
+    // phases: new structure has props.phase.phase = {phaseName: fraction}
+    let phaseMap = {};
+    if (props.phase && typeof props.phase === 'object') {
+      if (props.phase.phase && typeof props.phase.phase === 'object') {
+        // NEW JSON structure
+        phaseMap = props.phase.phase;
+      } else {
+        // Fallback: old structure where props.phase was already the map
+        phaseMap = props.phase;
+      }
+    }
 
-    records.push({
+    const phaseEntries = Object.entries(phaseMap)
+      .filter(([, v]) => typeof v === 'number')
+      .sort((a, b) => b[1] - a[1]);
+
+    const phasesFull = phaseEntries.map(([n, v]) => ({
+      name: n,
+      val: v * 100   // JSON fractions (0–1) → percent
+    }));
+    const topPhases = phasesFull.slice(0, 3);
+
+    // distances (for scoring)
+    const hardDist  = safeGet(props, ["hardness", "Distance"]);
+    const pitDist   = safeGet(props, ["pitting_potential", "Distance"]);
+    const sfeDist   = safeGet(props, ["stacking_fault_energy", "Distance"]);
+    const phaseDist = safeGet(props, ["phase", "distance"]); // note: lowercase "distance" in JSON
+
+    if (typeof hardDist === 'number')  hardnessDists.push(hardDist);
+    if (typeof pitDist === 'number')   pittingDists.push(pitDist);
+    if (typeof sfeDist === 'number')   sfeDists.push(sfeDist);
+    if (typeof phaseDist === 'number') phaseDists.push(phaseDist);
+
+     records.push({
       Alloy: name,
       at,
       wt,
@@ -233,10 +309,21 @@ async function loadAndPlot(){
       SFE: safeGet(props,["stacking_fault_energy","StackingFaultEnergy"]),
       Density: density ? round2(density) : null,
       Phases: phasesFull,
-      TopPhases: topPhases
+      TopPhases: topPhases,
+      HardnessDist: hardDist,
+      PittingDist: pitDist,
+      SFEDist: sfeDist,
+      PhaseDist: phaseDist
     });
   }
 
+  distThresholds = {
+    hardness: computePercentiles(hardnessDists),
+    pitting:  computePercentiles(pittingDists),
+    sfe:      computePercentiles(sfeDists),
+    phase:    computePercentiles(phaseDists)
+  };
+  
   // Distinct 5-element combinations
   const comboSet = new Set();
   for (const r of records) {
@@ -280,19 +367,33 @@ function setupSliders(){
 
 /* === Phase checkboxes === */
 function setupPhaseFilter(records){
-  const container=document.getElementById('phaseContainer');
-  container.innerHTML='';
-  const phaseSet=new Set();
-  records.forEach(r=>r.TopPhases?.forEach(p=>phaseSet.add(p.name)));
+  const container = document.getElementById('phaseContainer');
+  container.innerHTML = '';
+  const phaseSet = new Set();
+  records.forEach(r => r.TopPhases?.forEach(p => phaseSet.add(p.name)));
   allPhases = Array.from(phaseSet).sort();
-  for(const ph of allPhases){
-    const id=`phase_${ph}`;
-    const div=document.createElement('div');
-    div.innerHTML=`<label><input type="checkbox" id="${id}" checked> ${ph}</label>`;
+
+  for (const ph of allPhases) {
+    const id = `phase_${ph}`;
+    const div = document.createElement('div');
+
+    // Default: only BCC* and FCC* selected
+    const isPreferred =
+      ph.toUpperCase().includes('BCC') ||
+      ph.toUpperCase().includes('FCC');
+
+    div.innerHTML =
+      `<label><input type="checkbox" id="${id}" ${isPreferred ? 'checked' : ''}> ${ph}</label>`;
     container.appendChild(div);
-    document.getElementById(id).onchange=drawPlot;
+
+    document.getElementById(id).onchange = drawPlot;
   }
+
+  // Since most are off, button label now makes more sense as "Select All"
+  const btn = document.getElementById('togglePhasesBtn');
+  if (btn) btn.textContent = 'Select All';
 }
+
 
 /* === Toggle all phase checkboxes === */
 function toggleAllPhases(){
@@ -479,20 +580,45 @@ function renderDetail(rec){
   compHtml += '</tbody></table>';
   compDiv.innerHTML = compHtml;
 
-  // Properties table
+  // Properties table with scores
   const propDiv = document.getElementById('propTable');
+
+  const starsHard  = distanceToStars(rec.HardnessDist, distThresholds.hardness);
+  const starsPit   = distanceToStars(rec.PittingDist,  distThresholds.pitting);
+  const starsSFE   = distanceToStars(rec.SFEDist,      distThresholds.sfe);
+  const starsPhase = distanceToStars(rec.PhaseDist,    distThresholds.phase);
+
+// First phase (name + vol. %) from TopPhases
+const firstPhaseObj = rec.TopPhases && rec.TopPhases[0] ? rec.TopPhases[0] : null;
+const firstPhaseLabel = firstPhaseObj
+  ? `${firstPhaseObj.name} (${round2(firstPhaseObj.val)}%)`
+  : 'n/a';
+
   const props = [
-    ['Hardness (HV)', rec.Hardness],
-    ['Pitting potential (mV)', rec.PittingPotential],
-    ['Stacking fault energy (mJ/m²)', rec.SFE],
-    ['Density (kg/L)', rec.Density]
+    ['Hardness (HV)',              rec.Hardness,        starsHard],
+    ['Pitting potential (mV)',     rec.PittingPotential,starsPit],
+    ['Stacking fault energy (mJ/m²)', rec.SFE,          starsSFE],
+    ['Phase distance',             firstPhaseLabel,       starsPhase],
+    ['Density (kg/L)',             rec.Density,         null] // no stars for density
   ];
-  let propHtml = '<table class="detail-table"><tbody>';
-  for(const [label,val] of props){
-    propHtml += `<tr><th>${label}</th><td>${val != null ? round2(val) : 'n/a'}</td></tr>`;
-  }
-  propHtml += '</tbody></table>';
-  propDiv.innerHTML = propHtml;
+
+  let propHtml = '<table class="detail-table"><thead><tr>' +
+                 '<th>Property</th><th>Value</th><th>Score</th>' +
+                 '</tr></thead><tbody>';
+
+ for (const [label, val, stars] of props) {
+  const formattedVal =
+    typeof val === 'number' ? round2(val) :
+    (val != null ? val : 'n/a');
+
+  propHtml += `<tr>
+    <th>${label}</th>
+    <td>${formattedVal}</td>
+    <td>${starsToHtml(stars)}</td>
+  </tr>`;
+}
+propHtml += '</tbody></table>';
+propDiv.innerHTML = propHtml;
 
   // Composition pie (at%)
   const compLabels = elements;
