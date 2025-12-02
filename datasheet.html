@@ -760,8 +760,6 @@ function drawRadar(rec) {
     SFE: rec.SFE
   };
 
-  const all = [current, ...refs];
-
   const metrics = ['Hardness', 'Pitting', 'Density', 'FeWt', 'SFE'];
   const labels = [
     'Hardness (HV)',
@@ -790,9 +788,10 @@ function drawRadar(rec) {
     return n;
   }
 
-  const traces = all.map(a => {
+  // Build reference traces (drawn first, so they are behind)
+  const refTraces = refs.map(a => {
     const rNorm = [];
-    const customdata = []; // actual values for hover
+    const customdata = [];
 
     metrics.forEach(m => {
       const v = a[m];
@@ -807,11 +806,36 @@ function drawRadar(rec) {
       fill: 'toself',
       name: a.name,
       customdata: customdata,
+      opacity: 0.5,  // lighter shading
       hovertemplate:
         '%{theta}<br>' +
         '%{fullData.name}: %{customdata:.2f}<extra></extra>'
     };
   });
+
+  // Current alloy trace (added last → on top)
+  const currentR = [];
+  const currentCustom = [];
+  metrics.forEach(m => {
+    const v = current[m];
+    currentR.push(normalize(v, m));
+    currentCustom.push(v);
+  });
+
+  const currentTrace = {
+    type: 'scatterpolar',
+    r: currentR,
+    theta: labels,
+    fill: 'toself',
+    name: current.name,
+    customdata: currentCustom,
+    opacity: 0.6,  // stronger shading on top
+    hovertemplate:
+      '%{theta}<br>' +
+      '%{fullData.name}: %{customdata:.2f}<extra></extra>'
+  };
+
+  const traces = [...refTraces, currentTrace];
 
   const layout = {
     polar: {
@@ -828,6 +852,7 @@ function drawRadar(rec) {
 
   Plotly.newPlot('radarPlot', traces, layout, {responsive:true});
 }
+
 
 // Print / PDF export button
 document.getElementById('printBtn').onclick = function() {
