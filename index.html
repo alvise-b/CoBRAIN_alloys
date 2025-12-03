@@ -79,6 +79,7 @@
         <option value="Hardness" selected>Hardness (HV)</option>
         <option value="PittingPotential">Pitting Potential (mV)</option>
         <option value="SFE">Stacking Fault Energy (mJ/m²)</option>
+        <option value="Wear">Wear resistance</option>
         <option value="Density">Density (kg/L)</option>
       </select>
     </label>
@@ -88,6 +89,7 @@
         <option value="SFE" selected>Stacking Fault Energy (mJ/m²)</option>
         <option value="Hardness">Hardness (HV)</option>
         <option value="PittingPotential">Pitting Potential (mV)</option>
+        <option value="Wear">Wear resistance</option>
         <option value="Density">Density (kg/L)</option>
       </select>
     </label>
@@ -95,9 +97,10 @@
       Size by:
       <select id="sizeSelect">
         <option value="none">None</option>
-        <option value="SFE">SFE</option>
         <option value="Hardness">Hardness</option>
         <option value="PittingPotential">PittingPotential</option>
+        <option value="SFE">SFE</option>
+        <option value="Wear">Wear</option>
         <option value="Density">Density</option>
       </select>
     </label>
@@ -126,24 +129,19 @@
 
   <!-- Detail panel for a selected alloy -->
   <div id="detailContainer">
-   <div id="detailHeader">
-  <h3 style="margin:0;">Selected Alloy Details</h3>
-  <label>
-    Alloy:
-    <select id="alloySelect">
-      <option value="">— none selected —</option>
-      <!-- options will be filled dynamically -->
-    </select>
-  </label>
-
-  <!-- NEW: button to open datasheet.html -->
-  <button id="openDatasheetBtn" type="button" disabled>
-    Open datasheet
-  </button>
-
-  <span id="selectedAlloyLabel" style="font-size:14px; color:#555;"></span>
-</div>
-
+    <div id="detailHeader">
+      <h3 style="margin:0;">Selected Alloy Details</h3>
+      <label>
+        Alloy:
+        <select id="alloySelect">
+          <option value="">— none selected —</option>
+        </select>
+      </label>
+      <button id="openDatasheetBtn" type="button" disabled>
+        Open datasheet
+      </button>
+      <span id="selectedAlloyLabel" style="font-size:14px; color:#555;"></span>
+    </div>
 
     <div id="detailContent" style="display:none;">
       <div class="detail-row">
@@ -186,18 +184,12 @@ function safeGet(obj, path, def=undefined){
 }
 function round2(x){ return (typeof x === 'number' && isFinite(x)) ? Math.round(x*100)/100 : null; }
 
-let allRecords = [];
-let allPhases = [];
-
-let hardnessDists = [];
-let pittingDists = [];
-let sfeDists = [];
-let phaseDists = [];
-
+/* --- scoring helpers --- */
 let distThresholds = {
   hardness: null,
   pitting: null,
   sfe: null,
+  wear: null,
   phase: null
 };
 
@@ -227,7 +219,6 @@ function distanceToStars(dist, thresholds) {
   if (dist <= p50) return 3;
   if (dist <= p80) return 2;
   if (dist <= p90) return 1;
-  // values worse than 90th percentile: still 1 star
   return 1;
 }
 
@@ -236,6 +227,8 @@ function starsToHtml(stars) {
   return '★'.repeat(stars) + '☆'.repeat(5 - stars);
 }
 
+let allRecords = [];
+let allPhases = [];
 
 /* === Load data and initialise === */
 async function loadAndPlot(){
@@ -244,38 +237,56 @@ async function loadAndPlot(){
   const data = await resp.json();
 
   const records = [];
-  for(const [name, props] of Object.entries(data)){
-    if(typeof props !== 'object') continue;
-    const hardness = props.hardness && typeof props.hardness === 'object' ? props.hardness : {};
+
+  const hardnessDists = [];
+  const pittingDists = [];
+  const sfeDists = [];
+  const wearDists = [];
+  const phaseDists = [];
+
+  // process one composition inside a family
+  function processComposition(familyName, compName, props) {
+    if (!props || typeof props !== 'object') return;
+
+    const hardnessBlock = props.hardness && typeof props.hardness === 'object'
+      ? props.hardness
+      : {};
 
     // atomic composition (from hardness block)
     const at = {};
-    for(const [k,v] of Object.entries(hardness)){
-      if(filterElements.includes(k) && typeof v==='number') at[k] = v;
+    for (const [k, v] of Object.entries(hardnessBlock)) {
+      if (filterElements.includes(k) && typeof v === 'number') {
+        at[k] = v;
+      }
     }
-    if(Object.keys(at).length===0) continue;
+    if (Object.keys(at).length === 0) return;
 
     // weight fractions
-    const totalMass = Object.entries(at).reduce((s,[el,v])=> s+(v*atomicMasses[el]),0);
+    const totalMass = Object.entries(at)
+      .reduce((s, [el, v]) => s + (v * atomicMasses[el]), 0);
     const wt = {};
-    for(const [el,v] of Object.entries(at)) wt[el]=(v*atomicMasses[el])/totalMass*100;
+    if (totalMass > 0) {
+      for (const [el, v] of Object.entries(at)) {
+        wt[el] = (v * atomicMasses[el]) / totalMass * 100;
+      }
+    }
 
-    // density via simple rule of mixtures in ρ
+    // density via simple rule of mixtures
     let density = null;
-    if(Object.keys(wt).every(el=>elementDensities[el])){
-      const denom = Object.entries(wt).reduce((s,[el,v])=> s+(v/100)/elementDensities[el],0);
+    if (Object.keys(wt).length &&
+        Object.keys(wt).every(el => elementDensities[el])) {
+      const denom = Object.entries(wt)
+        .reduce((s, [el, v]) => s + (v/100)/elementDensities[el], 0);
       density = 1/denom;
     }
 
-    // phases: new structure has props.phase.phase = {phaseName: fraction}
+    // phases: props.phase.phase = {phaseName: fraction}
     let phaseMap = {};
     if (props.phase && typeof props.phase === 'object') {
       if (props.phase.phase && typeof props.phase.phase === 'object') {
-        // NEW JSON structure
         phaseMap = props.phase.phase;
       } else {
-        // Fallback: old structure where props.phase was already the map
-        phaseMap = props.phase;
+        phaseMap = props.phase; // just in case
       }
     }
 
@@ -285,56 +296,73 @@ async function loadAndPlot(){
 
     const phasesFull = phaseEntries.map(([n, v]) => ({
       name: n,
-      val: v * 100   // JSON fractions (0–1) → percent
+      val: v * 100
     }));
     const topPhases = phasesFull.slice(0, 3);
 
-    // distances (for scoring)
+    // distances
     const hardDist  = safeGet(props, ["hardness", "Distance"]);
     const pitDist   = safeGet(props, ["pitting_potential", "Distance"]);
     const sfeDist   = safeGet(props, ["stacking_fault_energy", "Distance"]);
-    const phaseDist = safeGet(props, ["phase", "distance"]); // note: lowercase "distance" in JSON
+    const wearDist  = safeGet(props, ["wear_resistance", "Distance"]);
+    const phaseDist = safeGet(props, ["phase", "distance"]);
 
     if (typeof hardDist === 'number')  hardnessDists.push(hardDist);
     if (typeof pitDist === 'number')   pittingDists.push(pitDist);
     if (typeof sfeDist === 'number')   sfeDists.push(sfeDist);
+    if (typeof wearDist === 'number')  wearDists.push(wearDist);
     if (typeof phaseDist === 'number') phaseDists.push(phaseDist);
 
-     records.push({
-      Alloy: name,
+    records.push({
+      Family: familyName,
+      Alloy: compName,          // composition name (used everywhere)
       at,
       wt,
       Hardness: safeGet(props,["hardness","Hardness"]),
       PittingPotential: safeGet(props,["pitting_potential","PittingPotential"]),
       SFE: safeGet(props,["stacking_fault_energy","StackingFaultEnergy"]),
+      Wear: safeGet(props,["wear_resistance","Wear"]),
       Density: density ? round2(density) : null,
       Phases: phasesFull,
       TopPhases: topPhases,
       HardnessDist: hardDist,
       PittingDist: pitDist,
       SFEDist: sfeDist,
+      WearDist: wearDist,
       PhaseDist: phaseDist
     });
   }
 
+  // NEW: strictly follow the family → compositions schema
+  for (const [familyName, compositions] of Object.entries(data)) {
+    if (!compositions || typeof compositions !== 'object') continue;
+    for (const [compName, props] of Object.entries(compositions)) {
+      processComposition(familyName, compName, props);
+    }
+  }
+
+  // Compute thresholds for stars
   distThresholds = {
     hardness: computePercentiles(hardnessDists),
     pitting:  computePercentiles(pittingDists),
     sfe:      computePercentiles(sfeDists),
+    wear:     computePercentiles(wearDists),
     phase:    computePercentiles(phaseDists)
   };
-  
-  // Distinct 5-element combinations
-  const comboSet = new Set();
-  for (const r of records) {
-    const els = Object.keys(r.at).sort();
-    const comboKey = els.join('-');
-    if (els.length === 5) comboSet.add(comboKey);
-  }
-  const combos = Array.from(comboSet).sort();
+
+  // Distinct 5-element combos = top-level family names
+  const families = Object.keys(data).sort();
   const comboDiv = document.getElementById('elementCombos');
-  comboDiv.innerHTML = `<b>Distinct 5-element groups:</b> (${combos.length})<br>` +
-    combos.map(c => c).join('<br>');
+
+  const prettyFamilies = families.map(fam => {
+    // split "AlCrCuFeMo" → ["Al","Cr","Cu","Fe","Mo"]
+    const els = fam.match(/[A-Z][a-z]?/g) || [fam];
+    return els.join('-');
+  });
+
+  comboDiv.innerHTML =
+    `<b>Distinct 5-element groups (families):</b> (${families.length})<br>` +
+    prettyFamilies.join('<br>');
 
   allRecords = records;
   setupSliders();
@@ -342,6 +370,7 @@ async function loadAndPlot(){
   populateAlloySelect();
   drawPlot();
 }
+
 
 /* === Sliders === */
 function setupSliders(){
@@ -367,33 +396,26 @@ function setupSliders(){
 
 /* === Phase checkboxes === */
 function setupPhaseFilter(records){
-  const container = document.getElementById('phaseContainer');
-  container.innerHTML = '';
-  const phaseSet = new Set();
-  records.forEach(r => r.TopPhases?.forEach(p => phaseSet.add(p.name)));
+  const container=document.getElementById('phaseContainer');
+  container.innerHTML='';
+  const phaseSet=new Set();
+  records.forEach(r=>r.TopPhases?.forEach(p=>phaseSet.add(p.name)));
   allPhases = Array.from(phaseSet).sort();
+  for(const ph of allPhases){
+    const id=`phase_${ph}`;
+    const div=document.createElement('div');
 
-  for (const ph of allPhases) {
-    const id = `phase_${ph}`;
-    const div = document.createElement('div');
-
-    // Default: only BCC* and FCC* selected
     const isPreferred =
       ph.toUpperCase().includes('BCC') ||
       ph.toUpperCase().includes('FCC');
 
-    div.innerHTML =
-      `<label><input type="checkbox" id="${id}" ${isPreferred ? 'checked' : ''}> ${ph}</label>`;
+    div.innerHTML=`<label><input type="checkbox" id="${id}" ${isPreferred ? 'checked' : ''}> ${ph}</label>`;
     container.appendChild(div);
-
-    document.getElementById(id).onchange = drawPlot;
+    document.getElementById(id).onchange=drawPlot;
   }
-
-  // Since most are off, button label now makes more sense as "Select All"
   const btn = document.getElementById('togglePhasesBtn');
   if (btn) btn.textContent = 'Select All';
 }
-
 
 /* === Toggle all phase checkboxes === */
 function toggleAllPhases(){
@@ -461,6 +483,7 @@ function drawPlot() {
         <b>${r.Alloy}</b><br>
         X: ${r[xSel]}<br>
         Y: ${r[ySel]}<br>
+        Wear: ${r.Wear != null ? round2(r.Wear) : 'n/a'}<br>
         <b>Composition (at%)</b><br>${atsList}<br>
         <b>Composition (wt%)</b><br>${wtsList}<br>
         <b>Density:</b> ${r.Density || 'n/a'}<br>
@@ -496,32 +519,25 @@ function drawPlot() {
 
   const config = { responsive: true };
 
-  // IMPORTANT: attach the click handler here, using the graph div (gd)
   Plotly.newPlot('plot', traces, layout, config).then(gd => {
-    gd.removeAllListeners('plotly_click');  // avoid duplicates if you re-draw
-
+    gd.removeAllListeners('plotly_click');
     gd.on('plotly_click', function(ev) {
       const pt = ev.points && ev.points[0];
       if (!pt || pt.customdata == null) return;
-
       const alloyName = pt.customdata;
       const rec = allRecords.find(r => r.Alloy === alloyName);
       if (rec) {
         const selectEl = document.getElementById('alloySelect');
         if (selectEl) selectEl.value = alloyName;
-        renderDetail(rec);  // your existing function that fills tables & pies
+        renderDetail(rec);
       }
     });
   });
 }
 
-
-
-
 /* === Alloy dropdown === */
 function populateAlloySelect(){
   const sel = document.getElementById('alloySelect');
-  // Keep first "none" option, remove others
   while (sel.options.length > 1) sel.remove(1);
   const names = allRecords.map(r => r.Alloy).sort();
   for(const name of names){
@@ -531,21 +547,20 @@ function populateAlloySelect(){
     sel.appendChild(opt);
   }
   sel.onchange = function(){
-  const v = sel.value;
-  const btn = document.getElementById('openDatasheetBtn');
-  if(!v){
-    document.getElementById('detailContent').style.display='none';
-    document.getElementById('selectedAlloyLabel').textContent = '';
-    if (btn) {
-      btn.disabled = true;
-      btn.onclick = null;
+    const v = sel.value;
+    const btn = document.getElementById('openDatasheetBtn');
+    if(!v){
+      document.getElementById('detailContent').style.display='none';
+      document.getElementById('selectedAlloyLabel').textContent = '';
+      if (btn) {
+        btn.disabled = true;
+        btn.onclick = null;
+      }
+      return;
     }
-    return;
-  }
-  const rec = allRecords.find(r => r.Alloy === v);
-  if(rec) renderDetail(rec);
-};
-
+    const rec = allRecords.find(r => r.Alloy === v);
+    if(rec) renderDetail(rec);
+  };
 }
 
 /* === Render detail panel === */
@@ -556,18 +571,17 @@ function renderDetail(rec){
   detailDiv.style.display = 'block';
   document.getElementById('selectedAlloyLabel').textContent =
     ` (showing: ${rec.Alloy})`;
-	  // NEW: enable "Open datasheet" button and set target URL
+
   const btn = document.getElementById('openDatasheetBtn');
   if (btn) {
     btn.disabled = false;
     btn.onclick = () => {
       const url = 'datasheet.html?alloy=' + encodeURIComponent(rec.Alloy);
-      // "background" = new tab
       window.open(url, '_blank');
     };
   }
 
-  // Composition table
+  // --- Composition table ---
   const compDiv = document.getElementById('compTable');
   const elements = Object.keys(rec.at).sort();
   let compHtml = '<table class="detail-table"><thead><tr>' +
@@ -580,47 +594,48 @@ function renderDetail(rec){
   compHtml += '</tbody></table>';
   compDiv.innerHTML = compHtml;
 
-  // Properties table with scores
+  // --- Properties table with stars (incl. phase) ---
   const propDiv = document.getElementById('propTable');
 
   const starsHard  = distanceToStars(rec.HardnessDist, distThresholds.hardness);
   const starsPit   = distanceToStars(rec.PittingDist,  distThresholds.pitting);
   const starsSFE   = distanceToStars(rec.SFEDist,      distThresholds.sfe);
+  const starsWear  = distanceToStars(rec.WearDist,     distThresholds.wear);
   const starsPhase = distanceToStars(rec.PhaseDist,    distThresholds.phase);
 
-// First phase (name + vol. %) from TopPhases
-const firstPhaseObj = rec.TopPhases && rec.TopPhases[0] ? rec.TopPhases[0] : null;
-const firstPhaseLabel = firstPhaseObj
-  ? `${firstPhaseObj.name} (${round2(firstPhaseObj.val)}%)`
-  : 'n/a';
+  const firstPhaseObj = rec.TopPhases && rec.TopPhases[0] ? rec.TopPhases[0] : null;
+  const firstPhaseLabel = firstPhaseObj
+    ? `${firstPhaseObj.name} (${round2(firstPhaseObj.val)}%)`
+    : 'n/a';
 
   const props = [
-    ['Hardness (HV)',              rec.Hardness,        starsHard],
-    ['Pitting potential (mV)',     rec.PittingPotential,starsPit],
-    ['Stacking fault energy (mJ/m²)', rec.SFE,          starsSFE],
-    ['Phase distance',             firstPhaseLabel,       starsPhase],
-    ['Density (kg/L)',             rec.Density,         null] // no stars for density
+    ['Hardness (HV)',                 rec.Hardness,         starsHard],
+    ['Pitting potential (mV)',        rec.PittingPotential, starsPit],
+    ['Stacking fault energy (mJ/m²)', rec.SFE,              starsSFE],
+    ['Wear resistance',               rec.Wear,             starsWear],
+    ['First phase (vol. %)',          firstPhaseLabel,      starsPhase],
+    ['Density (kg/L)',                rec.Density,          null]
   ];
 
   let propHtml = '<table class="detail-table"><thead><tr>' +
                  '<th>Property</th><th>Value</th><th>Score</th>' +
                  '</tr></thead><tbody>';
 
- for (const [label, val, stars] of props) {
-  const formattedVal =
-    typeof val === 'number' ? round2(val) :
-    (val != null ? val : 'n/a');
+  for (const [label, val, stars] of props) {
+    const formattedVal =
+      typeof val === 'number' ? round2(val) :
+      (val != null ? val : 'n/a');
 
-  propHtml += `<tr>
-    <th>${label}</th>
-    <td>${formattedVal}</td>
-    <td>${starsToHtml(stars)}</td>
-  </tr>`;
-}
-propHtml += '</tbody></table>';
-propDiv.innerHTML = propHtml;
+    propHtml += `<tr>
+      <th>${label}</th>
+      <td>${formattedVal}</td>
+      <td>${starsToHtml(stars)}</td>
+    </tr>`;
+  }
+  propHtml += '</tbody></table>';
+  propDiv.innerHTML = propHtml;
 
-  // Composition pie (at%)
+  // --- Composition pie (at%) ---
   const compLabels = elements;
   const compValues = elements.map(el => rec.at[el]*100);
   Plotly.newPlot('compPie', [{
@@ -633,8 +648,8 @@ propDiv.innerHTML = propHtml;
     margin:{l:0,r:0,t:10,b:10}
   }, {responsive:true});
 
-  // Phases pie (all phases from JSON)
-  const phases = (rec.Phases || []).filter(p => p.val > 0.01); // drop tiny tails
+  // --- Phases pie ---
+  const phases = (rec.Phases || []).filter(p => p.val > 0.01);
   if (phases.length > 0){
     const phaseLabels = phases.map(p => p.name);
     const phaseValues = phases.map(p => p.val);
@@ -648,7 +663,6 @@ propDiv.innerHTML = propHtml;
       margin:{l:0,r:0,t:10,b:10}
     }, {responsive:true});
   } else {
-    // If no phase data, clear or show empty chart
     document.getElementById('phasePie').innerHTML =
       '<div style="font-size:12px;color:#666;margin-top:40px;">No phase data available.</div>';
   }

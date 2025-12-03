@@ -114,7 +114,6 @@
       flex: 1 1 0;
     }
 
-    /* Pie chart row: forced single line, auto-shrink */
     .pie-section {
       margin-top: 10px;
     }
@@ -130,23 +129,23 @@
       min-width: 0;
       text-align: center;
     }
-	.pie-block h3 {
-	  text-align: center;
-	  margin-bottom: 4px;
-	}
-	
+
+    .pie-block h3 {
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
     .pie-holder {
       width: 100%;
       height: 220px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
 
-    /* Radar chart container */
     .radar-holder {
       width: 100%;
       height: 260px;
-      display: flex;
-	  justify-content: center;   /* center horizontally */
-	  align-items: center;       /* center vertically */
     }
 
     #errorMessage {
@@ -163,7 +162,6 @@
       margin-top: 0;
     }
 
-    /* Footer with logo and EU funding text */
     #footer {
       margin-top: 20px;
       padding-top: 8px;
@@ -190,7 +188,6 @@
       text-align: justify;
     }
 
-    /* Print styling */
     @media print {
       @page {
         size: A4 portrait;
@@ -276,13 +273,11 @@
   <div id="errorMessage"></div>
 
   <div id="mainContent" style="display:none;">
-    <!-- Alloy title -->
     <div class="section">
       <h2 id="alloyTitle"></h2>
       <p class="small" id="alloySub"></p>
     </div>
 
-    <!-- Composition + Phase List -->
     <div class="section grid">
       <div class="block">
         <h3>Composition</h3>
@@ -294,7 +289,6 @@
       </div>
     </div>
 
-    <!-- 3 pies in a single row -->
     <div class="section pie-section">
       <div class="pie-grid">
         <div class="pie-block">
@@ -312,20 +306,17 @@
       </div>
     </div>
 
-    <!-- Properties (full width) -->
     <div class="section">
       <h3>Properties</h3>
       <div id="propTable"></div>
     </div>
 
-    <!-- Radar (alone at bottom) -->
     <div class="section">
       <h3>Radar Comparison (normalized)</h3>
       <div id="radarPlot" class="radar-holder"></div>
     </div>
   </div>
 
-  <!-- Footer with logo and EU funding text -->
   <div id="footer">
     <div id="footerLogo">
       <img src="CoBRAIN_logo.png" alt="CoBRAIN logo">
@@ -355,6 +346,7 @@ let distThresholds = {
   hardness: null,
   pitting: null,
   sfe: null,
+  wear: null,
   phase: null
 };
 
@@ -362,6 +354,7 @@ let distMax = {
   hardness: null,
   pitting: null,
   sfe: null,
+  wear: null,
   phase: null
 };
 
@@ -416,7 +409,7 @@ function distanceToStars(dist, thresholds) {
   if (dist <= p50) return 3;
   if (dist <= p80) return 2;
   if (dist <= p90) return 1;
-  return 1; // >90th percentile
+  return 1;
 }
 
 function starsToHtml(stars) {
@@ -436,7 +429,7 @@ function computeTrust(dist, maxDist) {
 
 /* --- main loader --- */
 async function loadDatasheet() {
-  const alloyName = getQueryParam('alloy');
+  const alloyName = getQueryParam('alloy'); // composition name, e.g. Al5Cr50Cu10Fe25Mo10
   const errDiv = document.getElementById('errorMessage');
   const mainDiv = document.getElementById('mainContent');
 
@@ -451,28 +444,30 @@ async function loadDatasheet() {
     const data = await resp.json();
 
     let selectedRecord = null;
+
     const hardnessDists = [];
     const pittingDists = [];
     const sfeDists = [];
+    const wearDists = [];
     const phaseDists = [];
 
-    for (const [name, props] of Object.entries(data)) {
-      if (typeof props !== 'object') continue;
+    function processComposition(familyName, compName, props) {
+      if (!props || typeof props !== 'object') return;
 
-      // Distances (for scoring)
       const hardDist  = safeGet(props, ["hardness", "Distance"]);
       const pitDist   = safeGet(props, ["pitting_potential", "Distance"]);
       const sfeDist   = safeGet(props, ["stacking_fault_energy", "Distance"]);
-      const phaseDist = safeGet(props, ["phase", "distance"]); // note lowercase "distance"
+      const wearDist  = safeGet(props, ["wear_resistance", "Distance"]);
+      const phaseDist = safeGet(props, ["phase", "distance"]);
 
       if (typeof hardDist === 'number')  hardnessDists.push(hardDist);
       if (typeof pitDist === 'number')   pittingDists.push(pitDist);
       if (typeof sfeDist === 'number')   sfeDists.push(sfeDist);
+      if (typeof wearDist === 'number')  wearDists.push(wearDist);
       if (typeof phaseDist === 'number') phaseDists.push(phaseDist);
 
-      if (name !== alloyName) continue;
+      if (compName !== alloyName) return; // only build record for the requested composition
 
-      // Build record for the selected alloy
       const hardnessBlock = props.hardness && typeof props.hardness === 'object'
         ? props.hardness
         : {};
@@ -480,7 +475,7 @@ async function loadDatasheet() {
       const at = {};
       for (const [k, v] of Object.entries(hardnessBlock)) {
         if (filterElements.includes(k) && typeof v === 'number') {
-          at[k] = v; // fraction (0–1)
+          at[k] = v;
         }
       }
 
@@ -497,19 +492,17 @@ async function loadDatasheet() {
       let density = null;
       if (Object.keys(wt).length &&
           Object.keys(wt).every(el => elementDensities[el])) {
-        const denom = Object.entries(wt).reduce((s, [el, v]) =>
-          s + (v/100)/elementDensities[el], 0
-        );
+        const denom = Object.entries(wt)
+          .reduce((s, [el, v]) => s + (v/100)/elementDensities[el], 0);
         density = 1/denom;
       }
 
-      // phases: new structure has props.phase.phase = {phaseName: fraction}
       let phaseMap = {};
       if (props.phase && typeof props.phase === 'object') {
         if (props.phase.phase && typeof props.phase.phase === 'object') {
           phaseMap = props.phase.phase;
         } else {
-          phaseMap = props.phase; // fallback if ever needed
+          phaseMap = props.phase;
         }
       }
 
@@ -523,19 +516,30 @@ async function loadDatasheet() {
       }));
 
       selectedRecord = {
-        Alloy: alloyName,
+        Family: familyName,
+        Alloy: compName,
         at,
         wt,
         Hardness: safeGet(props,["hardness","Hardness"]),
         PittingPotential: safeGet(props,["pitting_potential","PittingPotential"]),
         SFE: safeGet(props,["stacking_fault_energy","StackingFaultEnergy"]),
+        Wear: safeGet(props,["wear_resistance","Wear"]),
         Density: density ? round2(density) : null,
         Phases: phasesFull,
         HardnessDist: hardDist,
         PittingDist: pitDist,
         SFEDist: sfeDist,
+        WearDist: wearDist,
         PhaseDist: phaseDist
       };
+    }
+
+    // strictly: families → compositions
+    for (const [familyName, compositions] of Object.entries(data)) {
+      if (!compositions || typeof compositions !== 'object') continue;
+      for (const [compName, props] of Object.entries(compositions)) {
+        processComposition(familyName, compName, props);
+      }
     }
 
     if (!selectedRecord) {
@@ -543,22 +547,24 @@ async function loadDatasheet() {
       return;
     }
 
-    // Compute global thresholds from all alloys
+    // thresholds for stars
     distThresholds = {
       hardness: computePercentiles(hardnessDists),
       pitting:  computePercentiles(pittingDists),
       sfe:      computePercentiles(sfeDists),
+      wear:     computePercentiles(wearDists),
       phase:    computePercentiles(phaseDists)
     };
 
-	distMax = {
-	  hardness: hardnessDists.length ? Math.max(...hardnessDists) : null,
-	  pitting:  pittingDists.length  ? Math.max(...pittingDists)  : null,
-	  sfe:      sfeDists.length      ? Math.max(...sfeDists)      : null,
-	  phase:    phaseDists.length    ? Math.max(...phaseDists)    : null
-	};
+    // max for trustability
+    distMax = {
+      hardness: hardnessDists.length ? Math.max(...hardnessDists) : null,
+      pitting:  pittingDists.length  ? Math.max(...pittingDists)  : null,
+      sfe:      sfeDists.length      ? Math.max(...sfeDists)      : null,
+      wear:     wearDists.length     ? Math.max(...wearDists)     : null,
+      phase:    phaseDists.length    ? Math.max(...phaseDists)    : null
+    };
 
-    // Render
     fillHeader(selectedRecord);
     fillComposition(selectedRecord);
     fillPhaseTable(selectedRecord);
@@ -574,6 +580,7 @@ async function loadDatasheet() {
     document.getElementById('errorMessage').textContent = 'Error loading datasheet: ' + msg;
   }
 }
+
 
 function fillHeader(rec) {
   document.getElementById('alloyTitle').textContent = rec.Alloy;
@@ -605,11 +612,13 @@ function fillProperties(rec) {
   const starsHard  = distanceToStars(rec.HardnessDist, distThresholds.hardness);
   const starsPit   = distanceToStars(rec.PittingDist,  distThresholds.pitting);
   const starsSFE   = distanceToStars(rec.SFEDist,      distThresholds.sfe);
+  const starsWear  = distanceToStars(rec.WearDist,     distThresholds.wear);
   const starsPhase = distanceToStars(rec.PhaseDist,    distThresholds.phase);
 
   const trustHard  = computeTrust(rec.HardnessDist, distMax.hardness);
   const trustPit   = computeTrust(rec.PittingDist,  distMax.pitting);
   const trustSFE   = computeTrust(rec.SFEDist,      distMax.sfe);
+  const trustWear  = computeTrust(rec.WearDist,     distMax.wear);
   const trustPhase = computeTrust(rec.PhaseDist,    distMax.phase);
 
   const firstPhase = (rec.Phases || [])[0] || null;
@@ -621,6 +630,7 @@ function fillProperties(rec) {
     ['Hardness (HV)',                 rec.Hardness,         trustHard,  starsHard],
     ['Pitting potential (mV)',        rec.PittingPotential, trustPit,   starsPit],
     ['Stacking fault energy (mJ/m²)', rec.SFE,              trustSFE,   starsSFE],
+    ['Wear resistance',              rec.Wear,             trustWear,  starsWear],
     ['First phase (vol. %)',          firstPhaseLabel,      trustPhase, starsPhase],
     ['Density (kg/L)',                rec.Density,          null,       null]
   ];
@@ -649,7 +659,6 @@ function fillProperties(rec) {
   div.innerHTML = html;
 }
 
-
 function fillPhaseTable(rec) {
   const div = document.getElementById('phaseTable');
   const phases = (rec.Phases || []).filter(p => p.val > 0.01);
@@ -673,7 +682,6 @@ function fillPhaseTable(rec) {
 function drawPies(rec) {
   const elements = Object.keys(rec.at).sort();
 
-  // Composition pie (at%)
   const compLabelsAt = elements;
   const compValuesAt = elements.map(el => rec.at[el]*100);
 
@@ -689,7 +697,6 @@ function drawPies(rec) {
     }, {responsive:true});
   }
 
-  // Composition pie (wt%)
   const compLabelsWt = elements;
   const compValuesWt = elements.map(el => rec.wt[el] || 0);
 
@@ -705,7 +712,6 @@ function drawPies(rec) {
     }, {responsive:true});
   }
 
-  // Phase pie
   const phases = (rec.Phases || []).filter(p => p.val > 0.01);
   if (phases.length) {
     Plotly.newPlot('phasePie', [{
@@ -723,15 +729,9 @@ function drawPies(rec) {
   }
 }
 
-/**
- * Radar chart with fixed normalization ranges.
- * Metrics: Hardness (HV), Pitting (mV), Density (kg/L), Fe wt%, SFE (mJ/m²)
- * References: AISI 316, Stellite, Inconel.
- */
 function drawRadar(rec) {
   const feWt = rec.wt && typeof rec.wt.Fe === 'number' ? rec.wt.Fe : 0;
 
-  // Reference materials with SFE
   const refs = [
     {
       name: 'AISI 316',
@@ -739,7 +739,8 @@ function drawRadar(rec) {
       Pitting: 260,
       Density: 8.0,
       FeWt: 65,
-      SFE: 27
+      SFE: 27,
+      Wear: 0
     },
     {
       name: 'Stellite',
@@ -747,7 +748,8 @@ function drawRadar(rec) {
       Pitting: 250,
       Density: 8.44,
       FeWt: 4.5,
-      SFE: -50
+      SFE: -50,
+      Wear: 0
     },
     {
       name: 'Inconel',
@@ -755,7 +757,8 @@ function drawRadar(rec) {
       Pitting: 600,
       Density: 8.44,
       FeWt: 6,
-      SFE: 5
+      SFE: 5,
+      Wear: 0
     }
   ];
 
@@ -765,25 +768,27 @@ function drawRadar(rec) {
     Pitting: rec.PittingPotential,
     Density: rec.Density,
     FeWt: feWt,
-    SFE: rec.SFE
+    SFE: rec.SFE,
+    Wear: rec.Wear
   };
 
-  const metrics = ['Hardness', 'Pitting', 'Density', 'FeWt', 'SFE'];
+  const metrics = ['Hardness', 'Pitting', 'Density', 'FeWt', 'SFE', 'Wear'];
   const labels = [
     'Hardness (HV)',
     'Pitting potential (mV)',
     'Density (kg/L)',
     'Fe wt%',
-    'SFE (mJ/m²)'
+    'SFE (mJ/m²)',
+    'Wear (a.u.)'
   ];
 
-  // Fixed normalization ranges for each metric
   const manualRanges = {
     Hardness: [0, 1000],
     Pitting: [-200, 1000],
     Density: [2, 12],
     FeWt: [0, 100],
-    SFE: [-100, 200]
+    SFE: [-100, 200],
+    Wear: [-0.1, 0.1] // adjust if you know a better range
   };
 
   function normalize(val, metric) {
@@ -796,11 +801,9 @@ function drawRadar(rec) {
     return n;
   }
 
-  // Build reference traces (drawn first, so they are behind)
   const refTraces = refs.map(a => {
     const rNorm = [];
     const customdata = [];
-
     metrics.forEach(m => {
       const v = a[m];
       rNorm.push(normalize(v, m));
@@ -814,14 +817,13 @@ function drawRadar(rec) {
       fill: 'toself',
       name: a.name,
       customdata: customdata,
-      opacity: 0.5,  // lighter shading
+      opacity: 0.25,
       hovertemplate:
         '%{theta}<br>' +
         '%{fullData.name}: %{customdata:.2f}<extra></extra>'
     };
   });
 
-  // Current alloy trace (added last → on top)
   const currentR = [];
   const currentCustom = [];
   metrics.forEach(m => {
@@ -837,7 +839,7 @@ function drawRadar(rec) {
     fill: 'toself',
     name: current.name,
     customdata: currentCustom,
-    opacity: 0.6,  // stronger shading on top
+    opacity: 0.6,
     hovertemplate:
       '%{theta}<br>' +
       '%{fullData.name}: %{customdata:.2f}<extra></extra>'
@@ -861,8 +863,6 @@ function drawRadar(rec) {
   Plotly.newPlot('radarPlot', traces, layout, {responsive:true});
 }
 
-
-// Print / PDF export button
 document.getElementById('printBtn').onclick = function() {
   window.print();
 };
