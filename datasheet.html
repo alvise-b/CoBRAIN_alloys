@@ -457,7 +457,7 @@ async function loadDatasheet() {
       const hardDist  = safeGet(props, ["hardness", "Distance"]);
       const pitDist   = safeGet(props, ["pitting_potential", "Distance"]);
       const sfeDist   = safeGet(props, ["stacking_fault_energy", "Distance"]);
-      const wearDist  = safeGet(props, ["wear_resistance", "Distance"]);
+      const wearDist  = safeGet(props, ["wear_rate", "Distance"]);
       const phaseDist = safeGet(props, ["phase", "distance"]);
 
       if (typeof hardDist === 'number')  hardnessDists.push(hardDist);
@@ -523,7 +523,7 @@ async function loadDatasheet() {
         Hardness: safeGet(props,["hardness","Hardness"]),
         PittingPotential: safeGet(props,["pitting_potential","PittingPotential"]),
         SFE: safeGet(props,["stacking_fault_energy","StackingFaultEnergy"]),
-        Wear: safeGet(props,["wear_resistance","Wear"]),
+        Wear: safeGet(props,["wear_rate","WearRate"]),
         Density: density ? round2(density) : null,
         Phases: phasesFull,
         HardnessDist: hardDist,
