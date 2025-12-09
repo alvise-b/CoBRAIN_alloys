@@ -79,7 +79,7 @@
         <option value="Hardness" selected>Hardness (HV)</option>
         <option value="PittingPotential">Pitting Potential (mV)</option>
         <option value="SFE">Stacking Fault Energy (mJ/m²)</option>
-        <option value="Wear">Wear resistance</option>
+        <option value="WearRate">Wear resistance</option>
         <option value="Density">Density (kg/L)</option>
       </select>
     </label>
@@ -89,7 +89,7 @@
         <option value="SFE" selected>Stacking Fault Energy (mJ/m²)</option>
         <option value="Hardness">Hardness (HV)</option>
         <option value="PittingPotential">Pitting Potential (mV)</option>
-        <option value="Wear">Wear resistance</option>
+        <option value="WearRate">Wear resistance</option>
         <option value="Density">Density (kg/L)</option>
       </select>
     </label>
@@ -100,7 +100,7 @@
         <option value="Hardness">Hardness</option>
         <option value="PittingPotential">PittingPotential</option>
         <option value="SFE">SFE</option>
-        <option value="Wear">Wear</option>
+        <option value="WearRate">Wear</option>
         <option value="Density">Density</option>
       </select>
     </label>
@@ -304,7 +304,7 @@ async function loadAndPlot(){
     const hardDist  = safeGet(props, ["hardness", "Distance"]);
     const pitDist   = safeGet(props, ["pitting_potential", "Distance"]);
     const sfeDist   = safeGet(props, ["stacking_fault_energy", "Distance"]);
-    const wearDist  = safeGet(props, ["wear_resistance", "Distance"]);
+    const wearDist  = safeGet(props, ["wear_rate", "Distance"]);
     const phaseDist = safeGet(props, ["phase", "distance"]);
 
     if (typeof hardDist === 'number')  hardnessDists.push(hardDist);
@@ -321,7 +321,7 @@ async function loadAndPlot(){
       Hardness: safeGet(props,["hardness","Hardness"]),
       PittingPotential: safeGet(props,["pitting_potential","PittingPotential"]),
       SFE: safeGet(props,["stacking_fault_energy","StackingFaultEnergy"]),
-      Wear: safeGet(props,["wear_resistance","Wear"]),
+      Wear: safeGet(props,["wear_rate","WearRate"]),
       Density: density ? round2(density) : null,
       Phases: phasesFull,
       TopPhases: topPhases,
