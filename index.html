@@ -79,7 +79,7 @@
         <option value="Hardness" selected>Hardness (HV)</option>
         <option value="PittingPotential">Pitting Potential (mV)</option>
         <option value="SFE">Stacking Fault Energy (mJ/m²)</option>
-        <option value="WearRate">Wear resistance</option>
+        <option value="WearRate">Wear rate (m3/mN)</option>
         <option value="Density">Density (kg/L)</option>
       </select>
     </label>
@@ -89,7 +89,7 @@
         <option value="SFE" selected>Stacking Fault Energy (mJ/m²)</option>
         <option value="Hardness">Hardness (HV)</option>
         <option value="PittingPotential">Pitting Potential (mV)</option>
-        <option value="WearRate">Wear resistance</option>
+        <option value="WearRate">Wear rate (m3/mN)</option>
         <option value="Density">Density (kg/L)</option>
       </select>
     </label>
@@ -612,7 +612,7 @@ function renderDetail(rec){
     ['Hardness (HV)',                 rec.Hardness,         starsHard],
     ['Pitting potential (mV)',        rec.PittingPotential, starsPit],
     ['Stacking fault energy (mJ/m²)', rec.SFE,              starsSFE],
-    ['Wear resistance',               rec.Wear,             starsWear],
+    ['Wear Rate (m3/mN)',               rec.Wear,             starsWear],
     ['First phase (vol. %)',          firstPhaseLabel,      starsPhase],
     ['Density (kg/L)',                rec.Density,          null]
   ];
