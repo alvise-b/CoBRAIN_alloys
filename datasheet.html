@@ -364,6 +364,12 @@ function round2(x) {
     : null;
 }
 
+function formatVal(x) {
+  if (typeof x !== 'number' || !isFinite(x)) return 'n/a';
+  if (Math.abs(x) > 0 && Math.abs(x) < 0.01) return x.toExponential(3);
+  return round2(x);
+}
+
 function safeGet(obj, path, def = undefined) {
   try {
     let cur = obj;
@@ -439,9 +445,20 @@ async function loadDatasheet() {
   }
 
   try {
-    const resp = await fetch('CoBrain_alloys.json');
-    if (!resp.ok) throw new Error('Failed to load CoBrain_alloys.json');
-    const data = await resp.json();
+    const files = [
+      'part_1.json','part_2.json','part_3.json','part_4.json',
+      'part_5.json','part_6.json','part_7.json'
+    ];
+    let data = {};
+    for (const file of files) {
+      try {
+        const resp = await fetch(file);
+        if (!resp.ok) continue;
+        const chunk = await resp.json();
+        Object.assign(data, chunk);
+      } catch(_) {}
+    }
+    if (!Object.keys(data).length) throw new Error('Failed to load any data files.');
 
     let selectedRecord = null;
 
@@ -451,37 +468,32 @@ async function loadDatasheet() {
     const wearDists = [];
     const phaseDists = [];
 
-    function processComposition(familyName, compName, props) {
-      if (!props || typeof props !== 'object') return;
+    // Flat format: alloyName → {composition, hardness, pitting_potential, ...}
+    for (const [compName, alloy] of Object.entries(data)) {
+      if (!alloy || typeof alloy !== 'object') continue;
 
-      const hardDist  = safeGet(props, ["hardness", "Distance"]);
-      const pitDist   = safeGet(props, ["pitting_potential", "Distance"]);
-      const sfeDist   = safeGet(props, ["stacking_fault_energy", "Distance"]);
-      const wearDist  = safeGet(props, ["wear_rate", "Distance"]);
-      const phaseDist = safeGet(props, ["phase", "distance"]);
+      const hardDist  = safeGet(alloy, ["hardness",             "Distance"]);
+      const pitDist   = safeGet(alloy, ["pitting_potential",    "Distance"]);
+      const sfeDist   = safeGet(alloy, ["stacking_fault_energy","Distance"]);
+      const wearDist  = safeGet(alloy, ["wear_rate",            "Distance"]);
+      const phaseDist = safeGet(alloy, ["phase",                "distance"]);
 
-      if (typeof hardDist === 'number')  hardnessDists.push(hardDist);
-      if (typeof pitDist === 'number')   pittingDists.push(pitDist);
-      if (typeof sfeDist === 'number')   sfeDists.push(sfeDist);
-      if (typeof wearDist === 'number')  wearDists.push(wearDist);
+      if (typeof hardDist  === 'number') hardnessDists.push(hardDist);
+      if (typeof pitDist   === 'number') pittingDists.push(pitDist);
+      if (typeof sfeDist   === 'number') sfeDists.push(sfeDist);
+      if (typeof wearDist  === 'number') wearDists.push(wearDist);
       if (typeof phaseDist === 'number') phaseDists.push(phaseDist);
 
-      if (compName !== alloyName) return; // only build record for the requested composition
+      if (compName !== alloyName) continue; // collect distances from all, but build record only for requested
 
-      const hardnessBlock = props.hardness && typeof props.hardness === 'object'
-        ? props.hardness
-        : {};
-
+      const compBlock = alloy.composition || {};
       const at = {};
-      for (const [k, v] of Object.entries(hardnessBlock)) {
-        if (filterElements.includes(k) && typeof v === 'number') {
-          at[k] = v;
-        }
+      for (const [k, v] of Object.entries(compBlock)) {
+        if (filterElements.includes(k) && typeof v === 'number') at[k] = v;
       }
 
       const totalMass = Object.entries(at)
         .reduce((s, [el, v]) => s + (v * atomicMasses[el]), 0);
-
       const wt = {};
       if (totalMass > 0) {
         for (const [el, v] of Object.entries(at)) {
@@ -490,56 +502,35 @@ async function loadDatasheet() {
       }
 
       let density = null;
-      if (Object.keys(wt).length &&
-          Object.keys(wt).every(el => elementDensities[el])) {
-        const denom = Object.entries(wt)
-          .reduce((s, [el, v]) => s + (v/100)/elementDensities[el], 0);
+      if (Object.keys(wt).length && Object.keys(wt).every(el => elementDensities[el])) {
+        const denom = Object.entries(wt).reduce((s, [el, v]) => s + (v/100)/elementDensities[el], 0);
         density = 1/denom;
       }
 
-      let phaseMap = {};
-      if (props.phase && typeof props.phase === 'object') {
-        if (props.phase.phase && typeof props.phase.phase === 'object') {
-          phaseMap = props.phase.phase;
-        } else {
-          phaseMap = props.phase;
-        }
-      }
+      const phaseBlock = alloy.phase || {};
+      const phaseMap = (phaseBlock.phase && typeof phaseBlock.phase === 'object')
+        ? phaseBlock.phase : phaseBlock;
 
-      const phaseEntries = Object.entries(phaseMap)
+      const phasesFull = Object.entries(phaseMap)
         .filter(([, v]) => typeof v === 'number')
-        .sort((a, b) => b[1] - a[1]);
-
-      const phasesFull = phaseEntries.map(([n, v]) => ({
-        name: n,
-        val: v * 100
-      }));
+        .sort((a, b) => b[1] - a[1])
+        .map(([n, v]) => ({ name: n, val: v * 100 }));
 
       selectedRecord = {
-        Family: familyName,
         Alloy: compName,
-        at,
-        wt,
-        Hardness: safeGet(props,["hardness","Hardness"]),
-        PittingPotential: safeGet(props,["pitting_potential","PittingPotential"]),
-        SFE: safeGet(props,["stacking_fault_energy","StackingFaultEnergy"]),
-        Wear: safeGet(props,["wear_rate","WearRate"]),
-        Density: density ? round2(density) : null,
+        at, wt,
+        Hardness:         safeGet(alloy, ["hardness",             "Hardness"]),
+        PittingPotential: safeGet(alloy, ["pitting_potential",    "PittingPotential"]),
+        SFE:              safeGet(alloy, ["stacking_fault_energy","StackingFaultEnergy"]),
+        WearRate:         safeGet(alloy, ["wear_rate",            "WearRate"]),
+        Density:          density ? round2(density) : null,
         Phases: phasesFull,
         HardnessDist: hardDist,
-        PittingDist: pitDist,
-        SFEDist: sfeDist,
-        WearDist: wearDist,
-        PhaseDist: phaseDist
+        PittingDist:  pitDist,
+        SFEDist:      sfeDist,
+        WearDist:     wearDist,
+        PhaseDist:    phaseDist
       };
-    }
-
-    // strictly: families → compositions
-    for (const [familyName, compositions] of Object.entries(data)) {
-      if (!compositions || typeof compositions !== 'object') continue;
-      for (const [compName, props] of Object.entries(compositions)) {
-        processComposition(familyName, compName, props);
-      }
     }
 
     if (!selectedRecord) {
@@ -630,7 +621,7 @@ function fillProperties(rec) {
     ['Hardness (HV)',                 rec.Hardness,         trustHard,  starsHard],
     ['Pitting potential (mV)',        rec.PittingPotential, trustPit,   starsPit],
     ['Stacking fault energy (mJ/m²)', rec.SFE,              trustSFE,   starsSFE],
-    ['Wear resistance',              rec.Wear,             trustWear,  starsWear],
+    ['Wear Rate (mm³/Nm)',            rec.WearRate,         trustWear,  starsWear],
     ['First phase (vol. %)',          firstPhaseLabel,      trustPhase, starsPhase],
     ['Density (kg/L)',                rec.Density,          null,       null]
   ];
@@ -641,7 +632,7 @@ function fillProperties(rec) {
 
   for (const [label, val, trust, stars] of props) {
     const formattedVal =
-      typeof val === 'number' ? round2(val) :
+      typeof val === 'number' ? formatVal(val) :
       (val != null ? val : 'n/a');
 
     const formattedTrust =
@@ -769,7 +760,7 @@ function drawRadar(rec) {
     Density: rec.Density,
     FeWt: feWt,
     SFE: rec.SFE,
-    Wear: rec.Wear
+    Wear: rec.WearRate
   };
 
   const metrics = ['Hardness', 'Pitting', 'Density', 'FeWt', 'SFE', 'Wear'];
@@ -788,7 +779,7 @@ function drawRadar(rec) {
     Density: [2, 12],
     FeWt: [0, 100],
     SFE: [-100, 200],
-    Wear: [-0.1, 0.1] // adjust if you know a better range
+    Wear: [-0.001, 0.001]
   };
 
   function normalize(val, metric) {
