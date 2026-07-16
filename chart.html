@@ -30,6 +30,7 @@
         <option value="Hardness" selected>Hardness (HV)</option>
         <option value="PittingPotential">Pitting Potential (mV)</option>
         <option value="SFE">Stacking Fault Energy (mJ/m²)</option>
+        <option value="WearRate">Wear Rate (mm³/Nm)</option>
         <option value="Density">Density (kg/L)</option>
       </select>
     </label>
@@ -39,6 +40,7 @@
         <option value="SFE" selected>Stacking Fault Energy (mJ/m²)</option>
         <option value="Hardness">Hardness (HV)</option>
         <option value="PittingPotential">Pitting Potential (mV)</option>
+        <option value="WearRate">Wear Rate (mm³/Nm)</option>
         <option value="Density">Density (kg/L)</option>
       </select>
     </label>
@@ -48,7 +50,8 @@
         <option value="none">None</option>
         <option value="SFE">SFE</option>
         <option value="Hardness">Hardness</option>
-        <option value="PittingPotential">PittingPotential</option>
+        <option value="PittingPotential">Pitting Potential</option>
+        <option value="WearRate">Wear Rate</option>
         <option value="Density">Density</option>
       </select>
     </label>
@@ -148,6 +151,7 @@ const topPhases = phases.slice(0, 3).map(([n, v]) => ({ name: n, val: v * 100 })
       Hardness:safeGet(props,["hardness","Hardness"]),
       PittingPotential:safeGet(props,["pitting_potential","PittingPotential"]),
       SFE:safeGet(props,["stacking_fault_energy","StackingFaultEnergy"]),
+      WearRate:safeGet(props,["wear_rate","WearRate"]),
       Density:density?round2(density):null,
       TopPhases:topPhases
     });
@@ -288,9 +292,16 @@ function drawPlot(){
     });
   }
 
+  const axisLabels = {
+    Hardness: 'Hardness (HV)',
+    PittingPotential: 'Pitting Potential (mV)',
+    SFE: 'Stacking Fault Energy (mJ/m²)',
+    WearRate: 'Wear Rate (mm³/Nm)',
+    Density: 'Density (kg/L)'
+  };
   Plotly.newPlot('plot', traces, {
     title:`Alloys (${filtered.length} shown)`,
-    xaxis:{title:xSel}, yaxis:{title:ySel},
+    xaxis:{title: axisLabels[xSel] || xSel}, yaxis:{title: axisLabels[ySel] || ySel},
     legend:{orientation:'h',x:0,y:-0.2}, hovermode:'closest'
   }, {responsive:true});
 }

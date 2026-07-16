@@ -8,18 +8,20 @@
   <style>
     body { font-family: Arial, Helvetica, sans-serif; margin: 18px; background-color: #EDEDED; color: #643554;}
     h2 { margin-bottom: 8px; color: #643554;}
-    #controls { margin-bottom: 10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    #controls { margin-bottom: 10px; display:flex; gap:16px; align-items:stretch; flex-wrap:wrap; }
+    #chartOptions, #filters { display:flex; flex-direction:column; }
     label { font-size:14px; }
     select, button { padding:6px 8px; font-size:14px; }
-    #filters, #phaseFilter { margin-top:10px; margin-bottom:10px; }
+    #filters, #chartOptions { margin-top:10px; margin-bottom:10px; }
+    #chartOptions .field-col { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+    #chartOptions .toggle-row { display:flex; gap:14px; align-items:center; margin-top:10px; }
     .slider-group { display:flex; align-items:center; margin:4px 0; gap:6px; }
     .slider-group label { width:40px; text-align:right; }
     input[type=range] { width:140px; }
-    .checkbox-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:4px; }
     .note { color:#643554; font-size:13px; margin-top:6px; }
     #plot { width:100%; height:70vh; }
     /*new entry*/
-    #controls, fieldset, #detailContainer {
+    fieldset, #detailContainer {
     background-color: #FFFFFF;  /* white background for panels */
     border-radius: 8px;
     padding: 12px;
@@ -40,50 +42,18 @@ button:hover {
 
     /* Detail panel */
     #detailContainer {
-      margin-top: 24px;
-      border-top: 1px solid #ccc;
-      padding-top: 12px;
+      margin: 10px 0;
     }
     #detailHeader {
       display:flex;
       align-items:center;
       gap:12px;
       flex-wrap:wrap;
-      margin-bottom:8px;
     }
-    #detailContent {
-      margin-top: 8px;
-    }
-    .detail-row {
-      display:flex;
-      flex-wrap:wrap;
-      gap:24px;
-    }
-    .detail-block {
-      min-width:220px;
-      max-width:360px;
-    }
-    .detail-block h4 {
-      margin: 4px 0 6px;
-    }
-    table.detail-table {
-      border-collapse: collapse;
-      width:100%;
-      font-size:13px;
-    }
-    table.detail-table th,
-    table.detail-table td {
-      border:1px solid #ddd;
-      padding:4px 6px;
-      text-align:right;
-    }
-    table.detail-table th:first-child,
-    table.detail-table td:first-child {
-      text-align:left;
-    }
-    #compPie, #phasePie {
-      width:360px;
-      height:300px;
+    #openDatasheetBtn {
+      padding:12px 20px;
+      font-size:17px;
+      font-weight:bold;
     }
   </style>
 </head>
@@ -107,98 +77,74 @@ button:hover {
 </div>
 
   <div id="controls">
-    <label>
-      X-axis:
-      <select id="xSelect">
-        <option value="Hardness" selected>Hardness (HV)</option>
-        <option value="PittingPotential">Pitting Potential (mV)</option>
-        <option value="SFE">Stacking Fault Energy (mJ/m²)</option>
-        <option value="WearRate">Wear rate (mm³/Nm)</option>
-        <option value="Density">Density (kg/L)</option>
-      </select>
-    </label>
-    <label>
-      Y-axis:
-      <select id="ySelect">
-        <option value="SFE" selected>Stacking Fault Energy (mJ/m²)</option>
-        <option value="Hardness">Hardness (HV)</option>
-        <option value="PittingPotential">Pitting Potential (mV)</option>
-        <option value="WearRate">Wear rate (mm³/Nm)</option>
-        <option value="Density">Density (kg/L)</option>
-      </select>
-    </label>
-    <label>
-      Size by:
-      <select id="sizeSelect">
-        <option value="none">None</option>
-        <option value="Hardness">Hardness</option>
-        <option value="PittingPotential">PittingPotential</option>
-        <option value="SFE">SFE</option>
-        <option value="WearRate">Wear</option>
-        <option value="Density">Density</option>
-      </select>
-    </label>
-    <button id="refreshBtn">Refresh / Recompute</button>
+    <!-- Chart options -->
+    <fieldset id="chartOptions">
+      <legend><b>Chart Options</b></legend>
+      <div class="field-col">
+        <label>
+          X-axis:
+          <select id="xSelect">
+            <option value="Hardness" selected>Hardness (HV)</option>
+            <option value="PittingPotential">Pitting Potential (mV)</option>
+            <option value="SFE">Stacking Fault Energy (mJ/m²)</option>
+            <option value="WearRate">Wear rate (mm³/Nm)</option>
+            <option value="Density">Density (kg/L)</option>
+          </select>
+        </label>
+        <label>
+          Y-axis:
+          <select id="ySelect">
+            <option value="SFE" selected>Stacking Fault Energy (mJ/m²)</option>
+            <option value="Hardness">Hardness (HV)</option>
+            <option value="PittingPotential">Pitting Potential (mV)</option>
+            <option value="WearRate">Wear rate (mm³/Nm)</option>
+            <option value="Density">Density (kg/L)</option>
+          </select>
+        </label>
+        <label>
+          Size by:
+          <select id="sizeSelect">
+            <option value="none">None</option>
+            <option value="Hardness">Hardness</option>
+            <option value="PittingPotential">PittingPotential</option>
+            <option value="SFE">SFE</option>
+            <option value="WearRate">Wear</option>
+            <option value="Density">Density</option>
+          </select>
+        </label>
+        <div class="toggle-row">
+          <label><input type="checkbox" id="bccToggle" checked> BCC</label>
+          <label><input type="checkbox" id="fccToggle" checked> FCC</label>
+        </div>
+        <button id="refreshBtn">Refresh / Recompute</button>
+      </div>
+    </fieldset>
+
+    <!-- Element sliders -->
+    <fieldset id="filters">
+      <legend><b>Element Filters (atomic %)</b></legend>
+      <div id="sliderContainer"></div>
+    </fieldset>
   </div>
 
-  <!-- Element sliders -->
-  <fieldset id="filters">
-    <legend><b>Element Filters (atomic %)</b></legend>
-    <div id="sliderContainer"></div>
-  </fieldset>
-
-  <!-- Phase checkboxes -->
-  <fieldset id="phaseFilter">
-    <legend><b>Phase Filter</b></legend>
-    <button id="togglePhasesBtn" type="button" style="margin-bottom:6px;">Deselect All</button>
-    <div id="phaseContainer" class="checkbox-grid"></div>
-  </fieldset>
+  <!-- Selected alloy -->
+  <div id="detailContainer">
+    <div id="detailHeader">
+      <h3 style="margin:0;">Selected Alloy</h3>
+      <input type="text" id="alloySearch" placeholder="type to search…"
+             style="padding:5px 7px;font-size:14px;border-radius:4px;border:1px solid #ccc;width:220px;">
+      <datalist id="alloyList"></datalist>
+      <button id="openDatasheetBtn" type="button" onclick="location.href='datasheet.html'">
+        Open datasheet
+      </button>
+    </div>
+  </div>
 
   <div id="plot"></div>
   <div class="note">
     Hover points to see composition and phases.<br>
     Use sliders to limit element ranges (default 0–40 at%) and checkboxes to toggle visible phases.<br>
-    Click a point or use the dropdown below to see full details.
-  </div>
-
-  <!-- Detail panel for a selected alloy -->
-  <div id="detailContainer">
-    <div id="detailHeader">
-      <h3 style="margin:0;">Selected Alloy Details</h3>
-      <label>
-        Alloy:
-        <input type="text" id="alloySearch" placeholder="type to search…"
-               style="padding:5px 7px;font-size:14px;border-radius:4px;border:1px solid #ccc;width:220px;">
-        <datalist id="alloyList"></datalist>
-      </label>
-      <button id="openDatasheetBtn" type="button" onclick="location.href='datasheet.html'">
-        Open datasheet
-      </button>
-      <span id="selectedAlloyLabel" style="font-size:14px; color:#555;"></span>
-    </div>
-
-    <div id="detailContent" style="display:none;">
-      <div class="detail-row">
-        <div class="detail-block">
-          <h4>Composition</h4>
-          <div id="compTable"></div>
-        </div>
-        <div class="detail-block">
-          <h4>Properties</h4>
-          <div id="propTable"></div>
-        </div>
-      </div>
-      <div class="detail-row" style="margin-top:16px;">
-        <div class="detail-block">
-          <h4>Composition (at% — Pie)</h4>
-          <div id="compPie"></div>
-        </div>
-        <div class="detail-block">
-          <h4>Phases (vol. % — Pie)</h4>
-          <div id="phasePie"></div>
-        </div>
-      </div>
-    </div>
+    Click a point or use the search above to select an alloy and open its datasheet.
   </div>
 
 <script>
@@ -217,57 +163,8 @@ function safeGet(obj, path, def=undefined){
   }catch(e){return def;}
 }
 function round2(x){ return (typeof x === 'number' && isFinite(x)) ? Math.round(x*100)/100 : null; }
-function formatVal(x){
-  if (typeof x !== 'number' || !isFinite(x)) return 'n/a';
-  if (Math.abs(x) > 0 && Math.abs(x) < 0.01) return x.toExponential(3);
-  return round2(x);
-}
-
-/* --- scoring helpers --- */
-let distThresholds = {
-  hardness: null,
-  pitting: null,
-  sfe: null,
-  wear: null,
-  phase: null
-};
-
-function computePercentiles(arr) {
-  if (!arr.length) return null;
-  const sorted = [...arr].sort((a, b) => a - b);
-  const n = sorted.length;
-  const pct = (p) => {
-    if (n === 1) return sorted[0];
-    const idx = Math.floor((p / 100) * (n - 1));
-    return sorted[idx];
-  };
-  return {
-    p10: pct(10),
-    p20: pct(20),
-    p50: pct(50),
-    p80: pct(80),
-    p90: pct(90)
-  };
-}
-
-function distanceToStars(dist, thresholds) {
-  if (dist == null || !thresholds) return null;
-  const { p10, p20, p50, p80, p90 } = thresholds;
-  if (dist <= p10) return 5;
-  if (dist <= p20) return 4;
-  if (dist <= p50) return 3;
-  if (dist <= p80) return 2;
-  if (dist <= p90) return 1;
-  return 1;
-}
-
-function starsToHtml(stars) {
-  if (!stars) return '—';
-  return '★'.repeat(stars) + '☆'.repeat(5 - stars);
-}
 
 let allRecords = [];
-let allPhases = [];
 
 /* === Load data and initialise === */
 async function loadAndPlot(){
@@ -287,7 +184,6 @@ async function loadAndPlot(){
   }
 
   const records = [];
-  const hardnessDists = [], pittingDists = [], sfeDists = [], wearDists = [], phaseDists = [];
 
   function alloyToFamily(name) {
     return (name.match(/[A-Z][a-z]?/g) || []).sort().join('');
@@ -326,18 +222,6 @@ async function loadAndPlot(){
       .map(([n, v]) => ({ name: n, val: v * 100 }));
     const topPhases = phasesFull.slice(0, 3);
 
-    const hardDist  = safeGet(alloy, ["hardness",             "Distance"]);
-    const pitDist   = safeGet(alloy, ["pitting_potential",    "Distance"]);
-    const sfeDist   = safeGet(alloy, ["stacking_fault_energy","Distance"]);
-    const wearDist  = safeGet(alloy, ["wear_rate",            "Distance"]);
-    const phaseDist = safeGet(alloy, ["phase",                "distance"]);
-
-    if (typeof hardDist  === 'number') hardnessDists.push(hardDist);
-    if (typeof pitDist   === 'number') pittingDists.push(pitDist);
-    if (typeof sfeDist   === 'number') sfeDists.push(sfeDist);
-    if (typeof wearDist  === 'number') wearDists.push(wearDist);
-    if (typeof phaseDist === 'number') phaseDists.push(phaseDist);
-
     records.push({
       Family: alloyToFamily(alloyName),
       Alloy: alloyName,
@@ -347,19 +231,9 @@ async function loadAndPlot(){
       SFE:              safeGet(alloy, ["stacking_fault_energy","StackingFaultEnergy"]),
       WearRate:         safeGet(alloy, ["wear_rate",            "WearRate"]),
       Density:          density ? round2(density) : null,
-      Phases: phasesFull, TopPhases: topPhases,
-      HardnessDist: hardDist, PittingDist: pitDist,
-      SFEDist: sfeDist, WearDist: wearDist, PhaseDist: phaseDist
+      Phases: phasesFull, TopPhases: topPhases
     });
   }
-
-  distThresholds = {
-    hardness: computePercentiles(hardnessDists),
-    pitting:  computePercentiles(pittingDists),
-    sfe:      computePercentiles(sfeDists),
-    wear:     computePercentiles(wearDists),
-    phase:    computePercentiles(phaseDists)
-  };
 
   const familySet = new Set(records.map(r => r.Family));
   const families  = Array.from(familySet).sort();
@@ -375,7 +249,6 @@ async function loadAndPlot(){
 
   allRecords = records;
   setupSliders();
-  setupPhaseFilter(records);
   populateAlloySelect();
   drawPlot();
 }
@@ -405,41 +278,10 @@ function setupSliders(){
   }
 }
 
-/* === Phase checkboxes === */
-function setupPhaseFilter(records){
-  const container=document.getElementById('phaseContainer');
-  container.innerHTML='';
-  const phaseSet=new Set();
-  records.forEach(r=>r.TopPhases?.forEach(p=>phaseSet.add(p.name)));
-  allPhases = Array.from(phaseSet).sort();
-  for(const ph of allPhases){
-    const id=`phase_${ph}`;
-    const div=document.createElement('div');
-
-    const isPreferred =
-      ph.toUpperCase().includes('BCC') ||
-      ph.toUpperCase().includes('FCC');
-
-    div.innerHTML=`<label><input type="checkbox" id="${id}" ${isPreferred ? 'checked' : ''}> ${ph}</label>`;
-    container.appendChild(div);
-    document.getElementById(id).onchange=drawPlot;
-  }
-  const btn = document.getElementById('togglePhasesBtn');
-  if (btn) btn.textContent = 'Select All';
-}
-
-/* === Toggle all phase checkboxes === */
-function toggleAllPhases(){
-  const btn = document.getElementById('togglePhasesBtn');
-  const checkboxes = allPhases.map(ph => document.getElementById(`phase_${ph}`));
-  const allChecked = checkboxes.every(ch => ch.checked);
-  for (const ch of checkboxes) ch.checked = !allChecked;
-  btn.textContent = allChecked ? "Select All" : "Deselect All";
-  drawPlot();
-}
-
 /* === Filtering for plot === */
 function applyFilters(records){
+  const bccChecked = document.getElementById('bccToggle').checked;
+  const fccChecked = document.getElementById('fccToggle').checked;
   return records.filter(r=>{
     const inRange = filterElements.every(el=>{
       const val=(r.at?.[el]||0)*100;
@@ -448,9 +290,12 @@ function applyFilters(records){
       return val>=minv && val<=maxv;
     });
     if(!inRange) return false;
-    const firstPhase=r.TopPhases?.[0]?.name || 'Unknown';
-    const visible=document.getElementById(`phase_${firstPhase}`);
-    return !visible || visible.checked;
+    const firstPhase=(r.TopPhases?.[0]?.name || '').toUpperCase();
+    const isBCC = firstPhase.includes('BCC');
+    const isFCC = firstPhase.includes('FCC');
+    if (isBCC) return bccChecked;
+    if (isFCC) return fccChecked;
+    return false;
   });
 }
 
@@ -517,10 +362,17 @@ function drawPlot() {
     });
   }
 
+  const axisLabels = {
+    Hardness:         'Hardness - HV',
+    PittingPotential: 'Pitting Potential - mV',
+    SFE:              'Stacking Fault Energy - mJ/m²',
+    WearRate:         'Wear Rate - mm³/Nm',
+    Density:          'Density - kg/L'
+  };
   const layout = {
     title: `Alloys (${filtered.length} shown)`,
-    xaxis: { title: xSel },
-    yaxis: { title: ySel },
+    xaxis: { title: axisLabels[xSel] || xSel },
+    yaxis: { title: axisLabels[ySel] || ySel },
     legend: { orientation: 'h', x: 0, y: -0.2 },
     hovermode: 'closest'
   };
@@ -563,8 +415,6 @@ function populateAlloySelect(){
     const btn = document.getElementById('openDatasheetBtn');
     const rec = allRecords.find(r => r.Alloy === v);
     if (!rec) {
-      document.getElementById('detailContent').style.display = 'none';
-      document.getElementById('selectedAlloyLabel').textContent = '';
       if (btn) { btn.disabled = true; btn.onclick = null; }
       return;
     }
@@ -576,11 +426,6 @@ function populateAlloySelect(){
 function renderDetail(rec){
   if(!rec) return;
 
-  const detailDiv = document.getElementById('detailContent');
-  detailDiv.style.display = 'block';
-  document.getElementById('selectedAlloyLabel').textContent =
-    ` (showing: ${rec.Alloy})`;
-
   const btn = document.getElementById('openDatasheetBtn');
   if (btn) {
     btn.disabled = false;
@@ -590,88 +435,6 @@ function renderDetail(rec){
       window.open(url, '_blank');
     };
   }
-
-  // --- Composition table ---
-  const compDiv = document.getElementById('compTable');
-  const elements = Object.keys(rec.at).sort();
-  let compHtml = '<table class="detail-table"><thead><tr>' +
-                 '<th>Element</th><th>at%</th><th>wt%</th></tr></thead><tbody>';
-  for(const el of elements){
-    const atp = round2(rec.at[el]*100);
-    const wtp = round2(rec.wt[el]);
-    compHtml += `<tr><td>${el}</td><td>${atp}</td><td>${wtp}</td></tr>`;
-  }
-  compHtml += '</tbody></table>';
-  compDiv.innerHTML = compHtml;
-
-  // --- Properties table with stars (incl. phase) ---
-  const propDiv = document.getElementById('propTable');
-
-  const starsHard  = distanceToStars(rec.HardnessDist, distThresholds.hardness);
-  const starsPit   = distanceToStars(rec.PittingDist,  distThresholds.pitting);
-  const starsSFE   = distanceToStars(rec.SFEDist,      distThresholds.sfe);
-  const starsWear  = distanceToStars(rec.WearDist,     distThresholds.wear);
-  const starsPhase = distanceToStars(rec.PhaseDist,    distThresholds.phase);
-
-  const firstPhaseObj = rec.TopPhases && rec.TopPhases[0] ? rec.TopPhases[0] : null;
-  const firstPhaseLabel = firstPhaseObj
-    ? `${firstPhaseObj.name} (${round2(firstPhaseObj.val)}%)`
-    : 'n/a';
-
-  const props = [
-    ['Hardness (HV)',                 rec.Hardness,         starsHard],
-    ['Pitting potential (mV)',        rec.PittingPotential, starsPit],
-    ['Stacking fault energy (mJ/m²)', rec.SFE,              starsSFE],
-    ['Wear Rate (mm³/Nm)',              rec.WearRate,         starsWear],
-    ['First phase (vol. %)',          firstPhaseLabel,      starsPhase],
-    ['Density (kg/L)',                rec.Density,          null]
-  ];
-
-  let propHtml = '<table class="detail-table"><thead><tr>' +
-                 '<th>Property</th><th>Value</th><th>Score</th>' +
-                 '</tr></thead><tbody>';
-
-  for (const [label, val, stars] of props) {
-    const formattedVal =
-      typeof val === 'number' ? formatVal(val) :
-      (val != null ? val : 'n/a');
-
-    propHtml += `<tr>
-      <th>${label}</th>
-      <td>${formattedVal}</td>
-      <td>${starsToHtml(stars)}</td>
-    </tr>`;
-  }
-  propHtml += '</tbody></table>';
-  propDiv.innerHTML = propHtml;
-
-  // --- Composition pie (at%) ---
-  const compLabels = elements;
-  const compValues = elements.map(el => rec.at[el]*100);
-  Plotly.react('compPie', [{
-    type: 'pie',
-    labels: compLabels,
-    values: compValues,
-    textinfo: 'label+percent',
-    hovertemplate: '%{label}: %{value:.2f}%<extra></extra>'
-  }], { margin:{l:0,r:0,t:10,b:10} }, {responsive:true});
-
-  // --- Phases pie ---
-  const phases = (rec.Phases || []).filter(p => p.val > 0.01);
-  const phaseDiv = document.getElementById('phasePie');
-  if (phases.length > 0){
-    Plotly.react('phasePie', [{
-      type: 'pie',
-      labels: phases.map(p => p.name),
-      values: phases.map(p => p.val),
-      textinfo: 'label+percent',
-      hovertemplate: '%{label}: %{value:.2f} %<extra></extra>'
-    }], { margin:{l:0,r:0,t:10,b:10} }, {responsive:true});
-  } else {
-    Plotly.purge('phasePie');
-    phaseDiv.innerHTML =
-      '<div style="font-size:12px;color:#666;margin-top:40px;">No phase data available.</div>';
-  }
 }
 
 /* === Bind top-level events === */
@@ -679,7 +442,8 @@ document.getElementById('refreshBtn').onclick = drawPlot;
 document.getElementById('xSelect').onchange = drawPlot;
 document.getElementById('ySelect').onchange = drawPlot;
 document.getElementById('sizeSelect').onchange = drawPlot;
-document.getElementById('togglePhasesBtn').onclick = toggleAllPhases;
+document.getElementById('bccToggle').onchange = drawPlot;
+document.getElementById('fccToggle').onchange = drawPlot;
 
 /* === Start === */
 loadAndPlot();
@@ -703,11 +467,10 @@ async function trackDatasheetOpen(rec) {
       }
     }
 
-    // Active phase checkboxes
-    const activePhases = allPhases.filter(ph => {
-      const cb = document.getElementById(`phase_${ph}`);
-      return cb && cb.checked;
-    });
+    // Active phase toggles
+    const activePhases = [];
+    if (document.getElementById('bccToggle').checked) activePhases.push('BCC');
+    if (document.getElementById('fccToggle').checked) activePhases.push('FCC');
 
     const entry = {
       timestamp:  new Date().toISOString(),
